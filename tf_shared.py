@@ -8,7 +8,7 @@ import pandas as pd
 import winsound as ws
 import tensorflow as tf
 import time
-import warnings
+
 from scipy.io import loadmat, savemat
 from tensorflow.python.tools import freeze_graph
 from tensorflow.python.tools import optimize_for_inference_lib
@@ -41,7 +41,53 @@ def generator_b(latent_space, output_shape, fc_units, wt_init, c_params):
                             activation=tf.nn.tanh)  # ALSO tf.nn.elu WORKS
 
 
-# TODO: Rewrite using only builtin funcs.
+def discriminator_b(inputs, units, c_params, wt_init, reuse=False):
+    if get_tensor_shape(inputs).shape[0] > 3:
+        s_offset = 1
+    else:
+        s_offset = 0
+    with tf.variable_scope("Discriminator"):
+        c1 = conv2d_layer(inputs, units[0], c_params[0][0], c_params[0][1], wt_init, name="d_c1", reuse=reuse,
+                          activation=lrelu, norm=False)
+        c2 = conv2d_layer(c1, units[1], c_params[1][0], c_params[1][1], wt_init, name="d_c2", reuse=reuse,
+                          activation=lrelu, norm=False)
+        c2_shape = get_tensor_shape(c2)
+        fc1 = tf.reshape(c2, [-1, c2_shape[0 + s_offset] * c2_shape[1 + s_offset] * c2_shape[2 + s_offset]])
+        # fc1 = fully_connect_contrib(fc1, units[2], wt_init, scope="d_fc1", activation=lrelu,
+        #                             reuse=reuse)  # TODO: PROBLEM LINE.
+        fc1 = fc_layer(fc1, units[2], wt_init, "d_fc1", activation=lrelu, reuse=reuse, norm=True)
+        fc2 = fc_layer(fc1, 1, wt_init, "d_fc2", activation=tf.nn.sigmoid, reuse=reuse)
+        return fc2
+
+
+def conv2d_layer(inputs, filters, kernel_size, strides, wt_init, name, padding="SAME", activation=tf.nn.relu,
+                 reuse=None, norm=True, init_weights=True):
+    if norm:
+        input_norm = tf.layers.batch_normalization(inputs)
+        if init_weights:
+            return tf.layers.conv2d(input_norm, filters, kernel_size, strides, padding=padding, activation=activation,
+                                    kernel_initializer=wt_init, name=name, reuse=reuse)
+        else:
+            return tf.layers.conv2d(input_norm, filters, kernel_size, strides, padding=padding, activation=activation,
+                                    kernel_initializer=None, name=name, reuse=reuse)
+    else:
+        if init_weights:
+            return tf.layers.conv2d(inputs, filters, kernel_size, strides, padding=padding, activation=activation,
+                                    kernel_initializer=wt_init, name=name, reuse=reuse)
+        else:
+            return tf.layers.conv2d(inputs, filters, kernel_size, strides, padding=padding, activation=activation,
+                                    kernel_initializer=None, name=name, reuse=reuse)
+
+
+def fc_layer(inputs, units, init, name, activation=tf.nn.relu, reuse=None, norm=False):
+    if norm:
+        b_n = tf.layers.batch_normalization(inputs, axis=1, scale=False, training=True, reuse=reuse, name='fc_bn1')
+        # NOTE MUST ENABLE/DISABLE TRAINING
+        return tf.layers.dense(b_n, units, kernel_initializer=init, activation=activation, name=name, reuse=reuse)
+    else:
+        return tf.layers.dense(inputs, units, kernel_initializer=init, activation=activation, name=name, reuse=reuse)
+
+
 def generator_contrib(latent_space, output_shape, fc_units, wt_init, c_params):
     batch_size = get_tensor_shape(latent_space)[0]
     fc_output_units = output_shape[0] // 4 * output_shape[1] * fc_units
@@ -62,41 +108,15 @@ def discriminator_contrib(inputs, units, c_params, wt_init, reuse=False):
     else:
         s_offset = 0
     with tf.variable_scope("Discriminator"):
-        c1 = conv2d_contrib(inputs, units[0], c_params[0][0], c_params[0][1], wt_init, "d_c1", reuse,
-                            activation=lrelu, norm=None)
-        c2 = conv2d_contrib(c1, units[1], c_params[1][0], c_params[1][1], wt_init, "d_c2", reuse,
-                            activation=lrelu, norm=None)
+        c1 = conv2d_contrib(inputs, units[0], c_params[0][0], c_params[0][1], wt_init, "d_c1", reuse, activation=lrelu,
+                            norm=None)
+        c2 = conv2d_contrib(c1, units[1], c_params[1][0], c_params[1][1], wt_init, "d_c2", reuse, activation=lrelu,
+                            norm=None)
         c2_shape = get_tensor_shape(c2)
         fc1 = tf.reshape(c2, [-1, c2_shape[0 + s_offset] * c2_shape[1 + s_offset] * c2_shape[2 + s_offset]])
         fc1 = fully_connect_contrib(fc1, units[2], wt_init, scope="d_fc1", activation=lrelu, reuse=reuse)
         fc2 = fully_connect_contrib(fc1, 1, wt_init, scope="d_fc2", activation=tf.nn.sigmoid, norm=None, reuse=reuse)
         return fc2
-
-
-def conv2d_layer(inputs, filters, kernel_size, strides, wt_init, name, padding="SAME", activation=tf.nn.relu, reuse=None,
-                 norm=True, init_weights=True):
-    if init_weights:
-        kernel_initializer = wt_init
-    else:
-        kernel_initializer = None
-    if norm:
-        input_norm = tf.layers.batch_normalization(inputs)
-        return tf.layers.conv2d(input_norm, filters, kernel_size, strides, padding=padding, activation=activation,
-                                kernel_initializer=kernel_initializer, name=name, reuse=reuse)
-    else:
-        return tf.layers.conv2d(inputs, filters, kernel_size, strides, padding=padding, activation=activation,
-                                kernel_initializer=kernel_initializer, name=name, reuse=reuse)
-
-
-def fc_layer(inputs, units, init, name, activation=tf.nn.relu):
-    return tf.layers.dense(inputs, units, kernel_initializer=init, activation=activation, name=name)
-
-
-def fully_connect_contrib(inputs, num_outputs, init, scope, activation=tf.nn.relu,
-                          norm=tf.contrib.layers.batch_norm,
-                          reuse=None):
-    return tf.contrib.layers.fully_connected(inputs=inputs, num_outputs=num_outputs, activation_fn=activation,
-                                             normalizer_fn=norm, weights_initializer=init, scope=scope, reuse=reuse)
 
 
 def conv2d_contrib(inputs, num_outputs, kernel, stride, wt_init, scope, reuse=None, activation=tf.nn.relu,
@@ -111,6 +131,12 @@ def conv2d_contrib_b(inputs, num_outputs, kernel, stride, scope, reuse=None, act
     return tf.contrib.layers.conv2d(inputs, num_outputs, kernel, stride, padding, reuse=reuse,
                                     activation_fn=activation,
                                     scope=scope, normalizer_fn=norm)
+
+
+def fully_connect_contrib(inputs, num_outputs, init, scope, activation=tf.nn.relu,
+                          norm=tf.contrib.layers.batch_norm, reuse=None):
+    return tf.contrib.layers.fully_connected(inputs=inputs, num_outputs=num_outputs, activation_fn=activation,
+                                             normalizer_fn=norm, weights_initializer=init, scope=scope, reuse=reuse)
 
 
 def tf_initialize():

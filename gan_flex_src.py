@@ -20,9 +20,10 @@ input_shape = [win_len, num_channels]  # for single sample reshape(x, [1, *input
 NUMBER_CLASSES = 2
 # LOAD DATA:
 x_train, y_train = tfs.load_data(TRAINING_FOLDER, [win_len], key_x='relevant_data', key_y='Y', shuffle=True)
+# np.random.shuffle(x_train)
 # TODO: Change to normal ECG Only.
 # x_train, y_train = tfs.load_data(TRAINING_FOLDER2, [win_len, 2], key_x='relevant_data', key_y='Y', shuffle=True)
-Model_description = src + 'gan_test2'
+Model_description = src + 'gan_test4_newdiscriminator2'
 output_folder_name = "out_samples/" + Model_description + "/"
 
 g_conv_params = [[[3, 3], [1, 1]], [[3, 3], [1, 1]], [[3, 3], [1, 1]]]  # [ [c1k, c1s] [c2k, c1s] [c3k, c3s] ]
@@ -34,7 +35,7 @@ d_outputs = [32, 64, 256]
 # Batch, LR, Training Iterations:
 batch_size = 512
 learning_rate = 1e-3
-train_its = 2000
+train_its = 3000
 latent_space_size = 100
 g_units = 128
 # Node/module names
@@ -60,11 +61,12 @@ wt_init = tf.truncated_normal_initializer(stddev=0.02)
 # Generators:
 # g_out = tfs.generator_contrib(z_in, input_shape, g_units, wt_init, g_conv_params)
 g_out = tfs.generator_b(z_in, input_shape, g_units, wt_init, g_conv_params)
-# TODO: TEMPORARY OUTPUT NODE # g2 = tf.multiply(x, 2, name=output_node_name)
 # TODO # g_out = tfs.generator(x, l_space)
 # Discriminators:
-d_out_fake = tfs.discriminator_contrib(g_out, d_outputs, d_conv_params, wt_init)
-d_out_real = tfs.discriminator_contrib(x_image, d_outputs, d_conv_params, wt_init, reuse=True)
+d_out_fake = tfs.discriminator_b(g_out, d_outputs, d_conv_params, wt_init)
+d_out_real = tfs.discriminator_b(x_image, d_outputs, d_conv_params, wt_init, reuse=True)
+# d_out_fake = tfs.discriminator_contrib(g_out, d_outputs, d_conv_params, wt_init)
+# d_out_real = tfs.discriminator_contrib(x_image, d_outputs, d_conv_params, wt_init, reuse=True)
 
 # loss and optimization:
 disc_loss = tf.reduce_sum(tf.square(d_out_real - 1) + tf.square(d_out_fake)) / 2

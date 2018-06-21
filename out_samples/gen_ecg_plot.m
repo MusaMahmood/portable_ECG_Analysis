@@ -1,7 +1,7 @@
 %
 clr;
 % dir = 'flexEcg_gan/';
-dir = 'flexEcggan_test1/';
+dir = 'flexEcggan_test4_newdiscriminator2/';
 list = 0:10:10000;
 for i = 1:length(list)
     if exist([dir num2str(list(i)) '.mat'])
