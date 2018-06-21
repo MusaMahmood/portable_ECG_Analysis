@@ -34,3 +34,4 @@ data/
 .idea/
 __pycache__/
 *.mat
+model_exports/

@@ -1,8 +1,6 @@
 %
 clr;
-dir = '1ch_v2/';
-dir = 'flexEcggan_new/';
-dir = 'mit_db_ds_small_gan_new/';
+dir = 'flexEcg_gan/';
 list = 0:10:10000;
 for i = 1:length(list)
     if exist([dir num2str(list(i)) '.mat'])
@@ -20,4 +18,4 @@ end
 
 
 %%
-dir = 'flexEcggan_new/'; load([dir '200.mat']); figure(1); plot(gen0); 
+% dir = 'flexEcggan_new/'; load([dir '200.mat']); figure(1); plot(gen0); 

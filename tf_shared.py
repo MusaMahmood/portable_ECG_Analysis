@@ -115,23 +115,6 @@ def train(x, y, keep_prob, accuracy, train_step, x_train, y_train, x_test, y_tes
     return val_accuracy_array
 
 
-def test(sess, x, y, accuracy, x_test, y_test, keep_prob, test_type='Holdout Validation'):
-    test_accuracy = sess.run(accuracy, feed_dict={x: x_test, y: y_test, keep_prob: 1.0})
-    print("Testing Accuracy - ", test_type, ':', test_accuracy, "\n\n")
-    return test_accuracy
-
-
-def test_v2(sess, x, y, accuracy, x_test, y_test, keep_prob, test_type='Holdout Validation', test_batch_size=100):
-    test_accuracy = np.zeros(shape=[x_test.shape[0] // test_batch_size], dtype=np.float32)
-    for i in range(0, x_test.shape[0] // test_batch_size):
-        batch_x = x_test[i:i + test_batch_size]
-        batch_y = y_test[i:i + test_batch_size]
-        test_accuracy[i] = sess.run(accuracy, feed_dict={x: batch_x, y: batch_y, keep_prob: 1.0})
-    test_accuracy = test_accuracy.mean()
-    print("Testing Accuracy - ", test_type, ':', test_accuracy, "\n\n")
-    return test_accuracy
-
-
 def confusion_matrix_test(sess, x, y, keep_prob, prediction, input_shape, x_val_data, y_val_data, number_classes=5):
     y_val_tf = np.zeros([x_val_data.shape[0]], dtype=np.int32)
     predictions = np.zeros([x_val_data.shape[0]], dtype=np.int32)
@@ -154,6 +137,10 @@ def confusion_matrix_test(sess, x, y, keep_prob, prediction, input_shape, x_val_
 
 def current_time_ms():
     return int(round(time.time() * 1000))
+
+
+def placeholder(shape, name, dtype=tf.float32):
+    return tf.placeholder(dtype, shape=shape, name=name)
 
 
 def placeholders(input_shape, number_classes, input_node_name, keep_prob_node_name, dtype=tf.float32):

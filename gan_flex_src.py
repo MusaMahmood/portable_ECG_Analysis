@@ -22,7 +22,7 @@ NUMBER_CLASSES = 2
 x_train, y_train = tfs.load_data(TRAINING_FOLDER, [win_len], key_x='relevant_data', key_y='Y', shuffle=True)
 # TODO: Change to normal ECG Only.
 # x_train, y_train = tfs.load_data(TRAINING_FOLDER2, [win_len, 2], key_x='relevant_data', key_y='Y', shuffle=True)
-
+Model_description = src + 'gan_v1'
 output_folder_name = "out_samples/" + src + "_gan/"
 
 g_conv_params = [[[3, 3], [1, 1]], [[3, 3], [1, 1]], [[3, 3], [1, 1]]]  # [ [c1k, c1s] [c2k, c1s] [c3k, c3s] ]
@@ -34,25 +34,33 @@ d_outputs = [32, 64, 256]
 # Batch, LR, Training Iterations:
 batch_size = 512
 learning_rate = 1e-3
-train_its = 2500
+train_its = 50
 latent_space_size = 100
 g_units = 128
+# Node/module names
+z_name = 'latent_space'
+input_node_name = 'input'
+output_node_name = 'output'
 
 # Input vars:
 # x is 'fake' fECG data
-x = tf.placeholder(tf.float32, shape=[None, win_len, num_channels])
+# x = tf.placeholder(tf.float32, shape=[None, win_len, num_channels])
+x = tfs.placeholder(shape=[None, win_len, num_channels], name=input_node_name)
 x_image = tf.reshape(x, [-1, win_len, num_channels, 1])
 # TODO y = 'real' data
 # y = tf.placeholder(tf.float32, shape=[None, win_len, num_channels])
 # y_image = tf.reshape(x, [-1, win_len, num_channels, 1])
 # Latent Space:
-z_in = tf.placeholder(tf.float32, shape=[batch_size, latent_space_size])  # Latent space (of size 512 * 100)
+# z_in = tf.placeholder(tf.float32, shape=[batch_size, latent_space_size])
+z_in = tfs.placeholder(shape=[batch_size, latent_space_size], name=z_name)  # Latent space (of size 512 * 100)
 
 wt_init = tf.truncated_normal_initializer(stddev=0.02)
 
 # Setup GAN Graph:
 # Generators:
 g_out = tfs.generator_contrib(z_in, input_shape, g_units, wt_init, g_conv_params)
+# TODO: TEMPORARY OUTPUT NODE
+g2 = tf.multiply(x, 2, name=output_node_name)
 # TODO # g_out = tfs.generator(x, )
 # Discriminators:
 d_out_fake = tfs.discriminator_contrib(g_out, d_outputs, d_conv_params, wt_init)
@@ -62,7 +70,7 @@ d_out_real = tfs.discriminator_contrib(x_image, d_outputs, d_conv_params, wt_ini
 disc_loss = tf.reduce_sum(tf.square(d_out_real - 1) + tf.square(d_out_fake)) / 2
 gen_loss = tf.reduce_sum(tf.square(d_out_fake - 1)) / 2
 
-tvars = tf.trainable_variables()
+# tvars = tf.trainable_variables()
 
 gen_variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="Generator")
 dis_variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="Discriminator")
@@ -80,6 +88,7 @@ update_G = g_optimizer.apply_gradients(g_grads)
 saver, init_op, config = tfs.tf_initialize()
 with tf.Session(config=config) as sess:
     sess.run(init_op)
+    tf.train.write_graph(sess.graph_def, EXPORT_DIRECTORY, Model_description + '.pbtxt', True)
     start_time_ms = tfs.current_time_ms()
     # Print Model Information:
     for i in range(train_its):
@@ -104,7 +113,15 @@ with tf.Session(config=config) as sess:
             if not os.path.exists(output_folder_name):
                 os.makedirs(output_folder_name)
             savemat(fn, mdict={'gen0': gen_o[0][:, :, 0]})
-        #     # result = plt.imshow(gen_o[0][:, :, 0], cmap="gray")
-        #     plt.imsave("{}.png".format(i), gen_o[0][:, :, 0], cmap="gray")
+
+    if not os.path.exists(output_folder_name):
+        os.makedirs(output_folder_name)
+    user_input = input('Export Current Model?')
+    if user_input == "1" or user_input.lower() == "y":
+        tfs.get_trained_vars(sess, output_folder_name + Model_description)
+        CHECKPOINT_FILE = EXPORT_DIRECTORY + Model_description + '.ckpt'
+        saver.save(sess, CHECKPOINT_FILE)
+        tfs.export_model([input_node_name], output_node_name, EXPORT_DIRECTORY, Model_description)
+
 elapsed_time_ms = (tfs.current_time_ms() - start_time_ms)
 print('Elapsed Time (ms): ', elapsed_time_ms)
