@@ -31,3 +31,6 @@
 *.out
 *.app
 data/
+.idea/
+__pycache__/
+*.mat

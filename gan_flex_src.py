@@ -13,16 +13,17 @@ from scipy.io import savemat
 EXPORT_DIRECTORY = 'model_exports/'
 win_len = 500
 num_channels = 1
-TRAINING_FOLDER = r'' + 'flexEcg'  # 'mit_db_ds_small'
-TRAINING_FOLDER2 = r'' + 'mit_db_ds_small'
+data_directory = 'data/'
+src = 'flexEcg'  # 'mit_db_ds_small'
+TRAINING_FOLDER = r'' + data_directory + src
 input_shape = [win_len, num_channels]  # for single sample reshape(x, [1, *input_shape])
 NUMBER_CLASSES = 2
 # LOAD DATA:
-x_flex, y_flex = tfs.load_data(TRAINING_FOLDER, [win_len], key_x='relevant_data', key_y='Y', shuffle=True)
+x_train, y_train = tfs.load_data(TRAINING_FOLDER, [win_len], key_x='relevant_data', key_y='Y', shuffle=True)
 # TODO: Change to normal ECG Only.
-x_train, y_train = tfs.load_data(TRAINING_FOLDER2, [win_len, 2], key_x='relevant_data', key_y='Y', shuffle=True)
+# x_train, y_train = tfs.load_data(TRAINING_FOLDER2, [win_len, 2], key_x='relevant_data', key_y='Y', shuffle=True)
 
-output_folder_name = "matout/" + TRAINING_FOLDER2 + "_gan_new/"
+output_folder_name = "out_samples/" + src + "_gan/"
 
 g_conv_params = [[[3, 3], [1, 1]], [[3, 3], [1, 1]], [[3, 3], [1, 1]]]  # [ [c1k, c1s] [c2k, c1s] [c3k, c3s] ]
 
@@ -33,7 +34,7 @@ d_outputs = [32, 64, 256]
 # Batch, LR, Training Iterations:
 batch_size = 512
 learning_rate = 1e-3
-train_its = 10000
+train_its = 2500
 latent_space_size = 100
 g_units = 128
 
