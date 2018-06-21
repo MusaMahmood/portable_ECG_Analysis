@@ -1,6 +1,6 @@
 # MUSA MAHMOOD - Copyright 2018
 # Python 3.6.3
-# TF 1.5.0
+# TF 1.8.0
 
 # IMPORTS:
 import tensorflow as tf
@@ -22,8 +22,8 @@ NUMBER_CLASSES = 2
 x_train, y_train = tfs.load_data(TRAINING_FOLDER, [win_len], key_x='relevant_data', key_y='Y', shuffle=True)
 # TODO: Change to normal ECG Only.
 # x_train, y_train = tfs.load_data(TRAINING_FOLDER2, [win_len, 2], key_x='relevant_data', key_y='Y', shuffle=True)
-Model_description = src + 'gan_v1'
-output_folder_name = "out_samples/" + src + "_gan/"
+Model_description = src + 'gan_test2'
+output_folder_name = "out_samples/" + Model_description + "/"
 
 g_conv_params = [[[3, 3], [1, 1]], [[3, 3], [1, 1]], [[3, 3], [1, 1]]]  # [ [c1k, c1s] [c2k, c1s] [c3k, c3s] ]
 
@@ -34,7 +34,7 @@ d_outputs = [32, 64, 256]
 # Batch, LR, Training Iterations:
 batch_size = 512
 learning_rate = 1e-3
-train_its = 50
+train_its = 2000
 latent_space_size = 100
 g_units = 128
 # Node/module names
@@ -58,10 +58,10 @@ wt_init = tf.truncated_normal_initializer(stddev=0.02)
 
 # Setup GAN Graph:
 # Generators:
-g_out = tfs.generator_contrib(z_in, input_shape, g_units, wt_init, g_conv_params)
-# TODO: TEMPORARY OUTPUT NODE
-g2 = tf.multiply(x, 2, name=output_node_name)
-# TODO # g_out = tfs.generator(x, )
+# g_out = tfs.generator_contrib(z_in, input_shape, g_units, wt_init, g_conv_params)
+g_out = tfs.generator_b(z_in, input_shape, g_units, wt_init, g_conv_params)
+# TODO: TEMPORARY OUTPUT NODE # g2 = tf.multiply(x, 2, name=output_node_name)
+# TODO # g_out = tfs.generator(x, l_space)
 # Discriminators:
 d_out_fake = tfs.discriminator_contrib(g_out, d_outputs, d_conv_params, wt_init)
 d_out_real = tfs.discriminator_contrib(x_image, d_outputs, d_conv_params, wt_init, reuse=True)
@@ -78,9 +78,8 @@ dis_variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="Discr
 d_optimizer = tf.train.RMSPropOptimizer(learning_rate=learning_rate)
 g_optimizer = tf.train.RMSPropOptimizer(learning_rate=learning_rate)
 
-d_grads = d_optimizer.compute_gradients(disc_loss,
-                                        dis_variables)  # Only update the weights for the discriminator network.
-g_grads = g_optimizer.compute_gradients(gen_loss, gen_variables)  # Only update the weights for the generator network.
+d_grads = d_optimizer.compute_gradients(disc_loss, dis_variables)  # Only update weights for the discriminator network.
+g_grads = g_optimizer.compute_gradients(gen_loss, gen_variables)  # Only update weights for the generator network.
 
 update_D = d_optimizer.apply_gradients(d_grads)
 update_G = g_optimizer.apply_gradients(g_grads)
@@ -114,14 +113,14 @@ with tf.Session(config=config) as sess:
                 os.makedirs(output_folder_name)
             savemat(fn, mdict={'gen0': gen_o[0][:, :, 0]})
 
-    if not os.path.exists(output_folder_name):
-        os.makedirs(output_folder_name)
-    user_input = input('Export Current Model?')
-    if user_input == "1" or user_input.lower() == "y":
-        tfs.get_trained_vars(sess, output_folder_name + Model_description)
-        CHECKPOINT_FILE = EXPORT_DIRECTORY + Model_description + '.ckpt'
-        saver.save(sess, CHECKPOINT_FILE)
-        tfs.export_model([input_node_name], output_node_name, EXPORT_DIRECTORY, Model_description)
+    # if not os.path.exists(output_folder_name):
+    #     os.makedirs(output_folder_name)
+    # user_input = input('Export Current Model?')
+    # if user_input == "1" or user_input.lower() == "y":
+    #     tfs.get_trained_vars(sess, output_folder_name + Model_description)
+    #     CHECKPOINT_FILE = EXPORT_DIRECTORY + Model_description + '.ckpt'
+    #     saver.save(sess, CHECKPOINT_FILE)
+    #     tfs.export_model([input_node_name], output_node_name, EXPORT_DIRECTORY, Model_description)
 
 elapsed_time_ms = (tfs.current_time_ms() - start_time_ms)
 print('Elapsed Time (ms): ', elapsed_time_ms)

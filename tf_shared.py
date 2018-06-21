@@ -21,8 +21,24 @@ from sklearn import metrics as skmet
 # tf.nn.conv2d(inputs, latent_space, strides=[1,1,1,1], padding='SAME')
 #     return 0
 
+
 def lrelu(x, a=0.2, name='lrelu'):
     return tf.nn.leaky_relu(x, a, name=name)
+
+
+def generator_b(latent_space, output_shape, fc_units, wt_init, c_params):
+    batch_size = get_tensor_shape(latent_space)[0]
+    fc_output_units = output_shape[0] // 4 * output_shape[1] * fc_units
+    with tf.variable_scope("Generator"):
+        norm_input = tf.layers.batch_normalization(latent_space)
+        fc1 = fc_layer(norm_input, fc_output_units, wt_init, name='g_fc1')
+        fc1 = reshape(fc1, batch_size, output_shape[0] // 4, output_shape[1], fc_units)
+        c1 = conv2d_layer(fc1, fc_units, c_params[0][0], c_params[0][1], wt_init, name='g_c1')
+        c1 = reshape(c1, batch_size, output_shape[0] // 2, output_shape[1], fc_units // 2)
+        c2 = conv2d_layer(c1, fc_units // 2, c_params[1][0], c_params[1][1], wt_init, name='g_c2')
+        c2 = reshape(c2, batch_size, output_shape[0], output_shape[1], fc_units // 4)
+        return conv2d_layer(c2, 1, c_params[2][0], c_params[2][1], wt_init, name='g_c3', norm=False, init_weights=False,
+                            activation=tf.nn.tanh)  # ALSO tf.nn.elu WORKS
 
 
 # TODO: Rewrite using only builtin funcs.
@@ -57,7 +73,27 @@ def discriminator_contrib(inputs, units, c_params, wt_init, reuse=False):
         return fc2
 
 
-def fully_connect_contrib(inputs, num_outputs, init, scope, activation=tf.nn.relu, norm=tf.contrib.layers.batch_norm,
+def conv2d_layer(inputs, filters, kernel_size, strides, wt_init, name, padding="SAME", activation=tf.nn.relu, reuse=None,
+                 norm=True, init_weights=True):
+    if init_weights:
+        kernel_initializer = wt_init
+    else:
+        kernel_initializer = None
+    if norm:
+        input_norm = tf.layers.batch_normalization(inputs)
+        return tf.layers.conv2d(input_norm, filters, kernel_size, strides, padding=padding, activation=activation,
+                                kernel_initializer=kernel_initializer, name=name, reuse=reuse)
+    else:
+        return tf.layers.conv2d(inputs, filters, kernel_size, strides, padding=padding, activation=activation,
+                                kernel_initializer=kernel_initializer, name=name, reuse=reuse)
+
+
+def fc_layer(inputs, units, init, name, activation=tf.nn.relu):
+    return tf.layers.dense(inputs, units, kernel_initializer=init, activation=activation, name=name)
+
+
+def fully_connect_contrib(inputs, num_outputs, init, scope, activation=tf.nn.relu,
+                          norm=tf.contrib.layers.batch_norm,
                           reuse=None):
     return tf.contrib.layers.fully_connected(inputs=inputs, num_outputs=num_outputs, activation_fn=activation,
                                              normalizer_fn=norm, weights_initializer=init, scope=scope, reuse=reuse)
@@ -65,13 +101,15 @@ def fully_connect_contrib(inputs, num_outputs, init, scope, activation=tf.nn.rel
 
 def conv2d_contrib(inputs, num_outputs, kernel, stride, wt_init, scope, reuse=None, activation=tf.nn.relu,
                    padding="SAME", norm=tf.contrib.layers.batch_norm):
-    return tf.contrib.layers.conv2d(inputs, num_outputs, kernel, stride, padding, reuse=reuse, activation_fn=activation,
+    return tf.contrib.layers.conv2d(inputs, num_outputs, kernel, stride, padding, reuse=reuse,
+                                    activation_fn=activation,
                                     weights_initializer=wt_init, scope=scope, normalizer_fn=norm)
 
 
 def conv2d_contrib_b(inputs, num_outputs, kernel, stride, scope, reuse=None, activation=tf.nn.relu,
                      padding="SAME", norm=tf.contrib.layers.batch_norm):
-    return tf.contrib.layers.conv2d(inputs, num_outputs, kernel, stride, padding, reuse=reuse, activation_fn=activation,
+    return tf.contrib.layers.conv2d(inputs, num_outputs, kernel, stride, padding, reuse=reuse,
+                                    activation_fn=activation,
                                     scope=scope, normalizer_fn=norm)
 
 
@@ -83,36 +121,6 @@ def tf_initialize():
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
     return saver, init_op, config
-
-
-def train(x, y, keep_prob, accuracy, train_step, x_train, y_train, x_test, y_test, keep_prob_feed=0.5,
-          number_steps=100, train_batch_size=64, test_batch_size=100, train_check=10, test_check=20):
-    val_step = 0
-    total_val_steps = number_steps // test_check
-    val_accuracy_array = np.zeros([total_val_steps, 2], dtype=np.float32)
-    for i in range(0, number_steps):
-        offset = (i * train_batch_size) % (x_train.shape[0] - train_batch_size)
-        batch_x_train = x_train[offset:(offset + train_batch_size)]
-        # TODO: TEMP
-        batch_x_train = np.reshape(batch_x_train, [batch_x_train.shape[0], batch_x_train.shape[1], 1])
-        batch_y_train = y_train[offset:(offset + train_batch_size)]
-        if i % train_check == 0:
-            train_accuracy = accuracy.eval(feed_dict={x: batch_x_train, y: batch_y_train, keep_prob: 1.0})
-            print("step %d, training accuracy %g" % (i, train_accuracy))
-        if i % test_check == 0:
-            offset = (val_step * test_batch_size) % (x_test.shape[0] - test_batch_size)
-            batch_x_val = x_test[offset:(offset + test_batch_size), :]
-            # TODO: TEMP
-            batch_x_val = np.reshape(batch_x_val, [batch_x_val.shape[0], batch_x_val.shape[1], 1])
-            batch_y_val = y_test[offset:(offset + test_batch_size), :]
-            val_accuracy = accuracy.eval(feed_dict={x: batch_x_val, y: batch_y_val, keep_prob: 1.0})
-            print("Validation step %d, validation accuracy %g" % (val_step, val_accuracy))
-            val_accuracy_array[val_step, 0] = (1 + val_step) * test_check * test_batch_size
-            val_accuracy_array[val_step, 1] = val_accuracy
-            val_step += 1
-
-        train_step.run(feed_dict={x: batch_x_train, y: batch_y_train, keep_prob: keep_prob_feed})
-    return val_accuracy_array
 
 
 def confusion_matrix_test(sess, x, y, keep_prob, prediction, input_shape, x_val_data, y_val_data, number_classes=5):
@@ -143,114 +151,11 @@ def placeholder(shape, name, dtype=tf.float32):
     return tf.placeholder(dtype, shape=shape, name=name)
 
 
-def placeholders(input_shape, number_classes, input_node_name, keep_prob_node_name, dtype=tf.float32):
-    x = tf.placeholder(dtype, shape=[None, *input_shape], name=input_node_name)
-    keep_prob = tf.placeholder(tf.float32, name=keep_prob_node_name)
-    y = tf.placeholder(dtype, shape=[None, number_classes])
-    return x, y, keep_prob
-
-
-def reshape_input(x, input_shape):
-    return tf.reshape(x, [-1, *input_shape, 1])
-
-
 def reshape(x, batch, l_x, l_y, out_ch):
     return tf.reshape(x, [batch, l_x, l_y, out_ch])
 
 
-def var_weight_bias(w_shape, b_shape):
-    w = tf.Variable(tf.truncated_normal(w_shape, stddev=0.1))
-    b = tf.Variable(tf.constant(0.1, shape=b_shape))
-    return w, b
-
-
-def var_weight_bias_named(w_shape, b_shape, w_name, b_name):
-    w = tf.Variable(tf.truncated_normal(w_shape, stddev=0.1), name=w_name)
-    b = tf.Variable(tf.constant(0.1, shape=b_shape), name=b_name)
-    return w, b
-
-
 # Model Building Macros: #
-def weight(shape):
-    initial = tf.truncated_normal(shape, stddev=0.1)
-    return tf.Variable(initial)
-
-
-def bias(shape):
-    initial = tf.constant(0.1, shape=shape)
-    return tf.Variable(initial)
-
-
-def conv_layer_named(input_, w_kernels, in_ch, num_kernels, strides, w_name, b_name, activation='relu', alpha=0.01):
-    """
-    See conv_layer:
-    """
-    weights, biases = var_weight_bias_named([*w_kernels, in_ch, num_kernels], [num_kernels], w_name, b_name)
-    conv_tensor = conv(input_, weights, biases, stride=[1, *strides, 1], activation=activation, alpha=alpha)
-    return conv_tensor, weights, biases
-
-
-def conv_layer(input_, w_kernels, in_ch, num_kernels, strides, activation='relu', alpha=0.01):
-    """
-    Quick function for returning relevant data
-    :param input_: Input Tensor
-    :param w_kernels: kernel size [x, y] (e.g. [3, 3])
-    :param in_ch: number of channels coming in from previous layer
-    :param num_kernels: Number of kernel convolutions to output
-    :param strides: conv stride [x, y], (e.g. [1, 2])
-    :param activation: Activation function
-    Options for activation are :
-        'relu'
-        'elu'
-        'leakyrelu'
-        'parametricrelu'
-    :param alpha: If using parametric relu
-    :return: Tensor representing the current layer, weights, biases (if required)
-    """
-    weights, biases = var_weight_bias([*w_kernels, in_ch, num_kernels], [num_kernels])
-    conv_tensor = conv(input_, weights, biases, stride=[1, *strides, 1], activation=activation, alpha=alpha)
-    return conv_tensor, weights, biases
-
-
-def fully_connect_layer(x, w_shape, b_shape, do, keep_prob, activation='relu', alpha_fc=0.01):
-    w_f, b_f = var_weight_bias(w_shape, b_shape)
-    return fully_connect(x, w_f, b_f, keep_prob, do, activation, alpha_fc)
-
-
-def output_layer(x, w_shape, b_shape, version='v1'):
-    w_fco, b_fco = var_weight_bias(w_shape, b_shape)
-    if version == 'v1':
-        return connect(x, w_fco, b_fco)
-    elif version == 'v2':
-        return connect_v2(x, w_fco, b_fco)
-
-
-# def conv(x, w, b, stride=list([1, 1, 1, 1]), activation='relu', padding='SAME', alpha=0.01, crelu=False):
-def conv(x, w, b, stride=list([1, 1, 1, 1]), activation='relu', padding='SAME', alpha=0.01):
-    x = tf.nn.conv2d(x, w, strides=stride, padding=padding)
-    x = tf.nn.bias_add(x, b)
-    if activation == 'relu':
-        return tf.nn.relu(x)
-    elif activation == 'elu':
-        return tf.nn.elu(x)
-    elif activation == 'leakyrelu':
-        return tf.nn.leaky_relu(x, alpha=0.01)
-    elif activation == 'parametricrelu':
-        return tf.nn.leaky_relu(x, alpha=alpha)
-    # TODO: This is not how to apply crelu: see example code.
-    # elif activation == 'crelu':
-    #     return tf.nn.crelu(x)
-    elif activation == 'selu':
-        return tf.nn.selu(x)
-    elif activation == 'identity':
-        return tf.identity(x)
-    else:
-        warnings.warn("ERROR: INVALID ACTIVATION PROVIDED!")
-        print('Invalid input: ', activation)
-        exit(-1)
-    # TODO: Parametric ELU?
-
-
 def get_tensor_shape_tuple(x_):
     shape_as_list = x_.get_shape().as_list()
     shape_as_list = list(filter(None.__ne__, shape_as_list))
@@ -265,8 +170,6 @@ def get_tensor_shape(x_):
 
 
 def flatten(x):
-    # dimensions
-    # shape = np.asarray(x.get_shape().as_list())
     shape = get_tensor_shape(x)
     dense_shape = 1
     # check if dimension is valid before multiplying out
@@ -279,25 +182,6 @@ def flatten(x):
 # Zero Padded Max Pooling
 def max_pool(x_, ksize, stride, padding='SAME'):
     return tf.nn.max_pool(x_, ksize=ksize, strides=stride, padding=padding)
-
-
-# For a relu activated FC
-def fully_connect(x, w, b, keep_prob, do='dropout', activation='relu', alpha=0.01):
-    connected_layer = connect_v2(x, w, b)
-    if activation == 'elu':
-        fc = tf.nn.elu(connected_layer)
-    elif activation == 'leakyrelu':
-        fc = tf.nn.leaky_relu(connected_layer, alpha=0.01)
-    elif activation == 'parametricrelu':
-        fc = tf.nn.leaky_relu(connected_layer, alpha=alpha)
-    elif activation == 'identity':
-        fc = tf.identity(connected_layer)
-    else:
-        fc = tf.nn.relu(connected_layer)
-    if do == 'dropout':
-        return tf.nn.dropout(fc, keep_prob=keep_prob)
-    else:
-        return fc
 
 
 # Simple matmul + bias add. Used for output layer
@@ -345,23 +229,6 @@ def check_prediction(y, outputs):
     return tf.equal(prediction, correct_class), prediction
 
 
-# Load Data:
-def load_data_v2(data_directory, image_shape, key_x, key_y):
-    x_train_data = np.empty([0, *image_shape], np.float32)
-    y_train_data = np.empty([0], np.float32)
-    training_files = glob.glob(data_directory + "/*.mat")
-    for f in training_files:
-        x_array = loadmat(f).get(key_x)
-        y_array = loadmat(f).get(key_y)
-        y_array = y_array.reshape([np.amax(y_array.shape)])
-        x_train_data = np.concatenate((x_train_data, x_array), axis=0)
-        y_train_data = np.concatenate((y_train_data, y_array), axis=0)
-    y_train_data = np.asarray(pd.get_dummies(y_train_data).values).astype(np.float32)
-    # return data_array
-    print("Loaded Data Shape: X:", x_train_data.shape, " Y: ", y_train_data.shape)
-    return x_train_data, y_train_data
-
-
 def load_data(data_directory, image_shape, key_x, key_y, shuffle=False):
     x_train_data = np.empty([0, *image_shape], np.float32)
     y_train_data = np.empty([0], np.float32)
@@ -398,115 +265,9 @@ def export_model(input_node_names, output_node_name_internal, export_dir, model_
     print("2 - Android Optimized Model:", export_dir + '/opt_' + model_name + '.pb')
 
 
-def save_statistics(folder_name, val_acc, details, info, elapsed_time, test_accuracy, file_name='stats.mat'):
-    savemat(folder_name + file_name, mdict={'training_rate': val_acc, 'details': details, 'info': info,
-                                            'elapsed_time': elapsed_time, 'test_accuracy': test_accuracy})
-
-
-def save_statistics_v2(folder_name, train_rate, details, info, elapsed_time, test_accuracy,
-                       val_acc=0, file_name='stats.mat'):
-    savemat(folder_name + file_name, mdict={'training_rate': train_rate, 'details': details, 'info': info,
-                                            'elapsed_time': elapsed_time, 'test_accuracy': test_accuracy,
-                                            'validation_accuracy': val_acc})
-
-
-def save_statistics_v3(folder_name, train_rate, details, info, elapsed_time, test_accuracy, test_conf_mat,
-                       val_acc=0, val_conf_mat=0, file_name='stats.mat'):
-    savemat(folder_name + file_name, mdict={'training_rate': train_rate, 'details': details, 'info': info,
-                                            'elapsed_time': elapsed_time, 'test_accuracy': test_accuracy,
-                                            'test_confusion': test_conf_mat, 'validation_accuracy': val_acc,
-                                            'val_confusion': val_conf_mat})
-
-
-# # # FOR SAVING DATA:
-def get_model_description(num_layers, activation, do, keep_prob, units_fc, fc_activation,
-                          lr_coeff, lr_exp, num_filters, conv_alpha=0.01, fc_alpha=0.01):
-    model_description = 'CNN-' + str(num_layers) + "-a." + activation
-    if activation == 'parametricrelu':
-        model_description += '.' + str(conv_alpha)
-    if do == 'dropout':
-        model_description += '-drop' + str(keep_prob)
-    model_description += '-fc.' + str(units_fc) + '.' + fc_activation
-    if fc_activation == 'parametricrelu':
-        model_description += '.' + str(fc_alpha)
-    model_description += '-lr.' + str(lr_coeff) + 'e-' + str(lr_exp) + '-k.' + str(num_filters[0:num_layers])
-    return model_description
-
-
-def get_model_dimensions(h, h_flat, h_fc, y_conv, number_layers):
-    message = ''
-    message += "Model Dimensions: " + '\n'
-    for i in range(0, number_layers):
-        message += "h_conv" + str(i + 1) + ": " + str(get_tensor_shape_tuple(h[i])) + '\n'
-    message += "h_flat: " + str(get_tensor_shape_tuple(h_flat)) + '\n'
-    message += "h_fc: " + str(get_tensor_shape_tuple(h_fc)) + '\n'
-    message += "y_conv: " + str(get_tensor_shape_tuple(y_conv)) + '\n'
-    return message
-
-
-def get_filter_dimensions(w_x, w_y, s_x, s_y, alpha_conv, num_layers):
-    message = "Filter Dimensions:" + '\n'
-    for i in range(0, num_layers):
-        message += "h_c" + str(i + 1) + "_filt: " + str([w_x[i], w_y[i]]) + \
-                   " stride: " + str([s_x[i], s_y[i]]) + " calpha=" + str(alpha_conv[i]) + '\n'
-    return message
-
-
 def get_activations_mat(x, keep_prob, sess, layer, input_sample, input_shape):
     units = sess.run(layer, feed_dict={x: np.reshape(input_sample, input_shape, order='F'), keep_prob: 1.0})
     return units
-
-
-def get_all_activations(sess, x, keep_prob, input_shape, test_data_x, test_data_y, folder_name, h_layers, h_flat, h_fc,
-                        y_out):
-    h_conv_shapes = [get_tensor_shape(i) for i in h_layers]
-    h_flat_shape = get_tensor_shape(h_flat)
-    h_fc_shape = get_tensor_shape(h_fc)
-    y_out_shape = get_tensor_shape(y_out)
-    # Create Empty Arrays: TODO: CHANGE PREALLOCATION METHOD (this is slooow)
-    w_conv = [np.empty([0, *i]) for i in h_conv_shapes]
-    w_conv1 = w_conv[0]
-    w_conv2 = [0]
-    w_conv3 = [0]
-    w_conv4 = [0]
-    if len(h_layers) > 1:
-        w_conv2 = w_conv[1]
-    if len(h_layers) > 2:
-        w_conv3 = w_conv[2]
-    if len(h_layers) > 3:
-        w_conv4 = w_conv[3]
-    w_flat = np.empty([0, *h_flat_shape], np.float32)
-    w_hfc = np.empty([0, *h_fc_shape], np.float32)
-    w_y_out = np.empty([0, *y_out_shape], np.float32)
-    for i in range(0, test_data_x.shape[0]):
-        if i % 100 == 0:
-            print('Sample #', i, 'out of: ', test_data_x.shape[0])
-        sample = test_data_x[i]
-        w_flat = np.concatenate((w_flat, get_activations_mat(x, keep_prob, sess, h_flat, sample, input_shape)), axis=0)
-        w_hfc = np.concatenate((w_hfc, get_activations_mat(x, keep_prob, sess, h_fc, sample, input_shape)), axis=0)
-        w_y_out = np.concatenate((w_y_out, get_activations_mat(x, keep_prob, sess, y_out, sample, input_shape)), axis=0)
-        w_conv1 = np.concatenate((w_conv1, get_activations_mat(x, keep_prob, sess, h_layers[0], sample, input_shape)),
-                                 axis=0)
-        if len(h_layers) > 1:
-            w_conv2 = np.concatenate(
-                (w_conv2, get_activations_mat(x, keep_prob, sess, h_layers[1], sample, input_shape)), axis=0)
-        if len(h_layers) > 2:
-            w_conv3 = np.concatenate(
-                (w_conv3, get_activations_mat(x, keep_prob, sess, h_layers[2], sample, input_shape)), axis=0)
-        if len(h_layers) > 3:
-            w_conv4 = np.concatenate(
-                (w_conv4, get_activations_mat(x, keep_prob, sess, h_layers[3], sample, input_shape)), axis=0)
-    fn_out = folder_name + 'all_activations.mat'
-    d = {'input_sample': test_data_x, 'intended_output': test_data_y, 'h_flat': w_flat, 'h_fc1': w_hfc,
-         'y_out': w_y_out, 'w_conv1': w_conv1}
-    # If num_layers > 1: Append to dict:
-    if len(h_layers) > 1:
-        d['w_conv2'] = w_conv2
-    if len(h_layers) > 2:
-        d['w_conv3'] = w_conv3
-    if len(h_layers) > 3:
-        d['w_conv4'] = w_conv4
-    savemat(fn_out, mdict=d)
 
 
 def get_trained_vars(sess, filename):

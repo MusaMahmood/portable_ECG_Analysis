@@ -1,6 +1,7 @@
 %
 clr;
-dir = 'flexEcg_gan/';
+% dir = 'flexEcg_gan/';
+dir = 'flexEcggan_test1/';
 list = 0:10:10000;
 for i = 1:length(list)
     if exist([dir num2str(list(i)) '.mat'])
@@ -8,7 +9,7 @@ for i = 1:length(list)
         gen_all(i, :, :) = gen0;
     end
 end
-for j = 1
+for j = 1:2
     offset = (j-1)*100;
     for i = 1:100
         figure(10 + j); subplot(10, 10, i);
