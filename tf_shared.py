@@ -26,6 +26,23 @@ def lrelu(x, a=0.2, name='lrelu'):
     return tf.nn.leaky_relu(x, a, name=name)
 
 
+def generator_c(y, latent_space, output_shape, fc_units, wt_init, c_params):
+    batch_size = get_tensor_shape(latent_space)[0]
+    fc_output_units = output_shape[0] // 4 * output_shape[1] * fc_units
+    with tf.variable_scope("Generator"):
+        norm_input = tf.layers.batch_normalization(latent_space)
+        fc1 = fc_layer(norm_input, fc_output_units, wt_init, name='g_fc1')
+        fc1 = reshape(fc1, batch_size, output_shape[0] // 4, output_shape[1], fc_units)
+        c1 = conv2d_layer(fc1, fc_units, c_params[0][0], c_params[0][1], wt_init, name='g_c1')
+        c1 = reshape(c1, batch_size, output_shape[0] // 2, output_shape[1], fc_units // 2)
+        c2 = conv2d_layer(c1, fc_units // 2, c_params[1][0], c_params[1][1], wt_init, name='g_c2')
+        c2 = reshape(c2, batch_size, output_shape[0], output_shape[1], fc_units // 4)
+        c3 = conv2d_layer(c2, 1, c_params[2][0], c_params[2][1], wt_init, name='g_c3', norm=False, init_weights=False,
+                          activation=tf.nn.tanh)  # ALSO tf.nn.elu WORKS
+        y_out = tf.add(c3, y)  # Returns x + y element-wise.
+        return y_out
+
+
 def generator_b(latent_space, output_shape, fc_units, wt_init, c_params):
     batch_size = get_tensor_shape(latent_space)[0]
     fc_output_units = output_shape[0] // 4 * output_shape[1] * fc_units
