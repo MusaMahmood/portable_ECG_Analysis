@@ -24,7 +24,7 @@ x_fake, y_fake = tfs.load_data(TRAINING_FOLDER, [win_len], key_x='relevant_data'
 # np.random.shuffle(x_fake)
 # TODO: Change to normal ECG Only.
 x_real, y_real = tfs.load_data(TRAINING_FOLDER_2, [win_len, 2], key_x='relevant_data', key_y='Y', shuffle=True)
-Model_description = src + 'gan_GenC_v1'
+Model_description = src + 'gan_GenD_v4'
 output_folder_name = "out_samples/" + Model_description + "/"
 
 g_conv_params = [[[3, 3], [1, 1]], [[3, 3], [1, 1]], [[3, 3], [1, 1]]]  # [ [c1k, c1s] [c2k, c1s] [c3k, c3s] ]
@@ -35,7 +35,7 @@ d_outputs = [32, 64, 256]
 
 # Batch, LR, Training Iterations:
 batch_size = 512
-batch_size_y = 1
+batch_size_y = 512
 learning_rate = 1e-3
 train_its = 2000
 latent_space_size = 100
@@ -48,7 +48,6 @@ output_node_name = 'output'
 
 # Input vars:
 # x is 'fake' ECG data
-# x = tf.placeholder(tf.float32, shape=[None, win_len, num_channels])
 x = tfs.placeholder(shape=[None, win_len, num_channels], name=input_node_real)
 x_image = tf.reshape(x, [-1, win_len, num_channels, 1])
 # TODO y = 'Fake:' data that needs to be modified.
@@ -56,13 +55,14 @@ y = tfs.placeholder(shape=[None, win_len, num_channels], name=input_node_fake)
 y_image = tf.reshape(y, [-1, win_len, num_channels, 1])
 # Latent Space:
 # z_in = tf.placeholder(tf.float32, shape=[batch_size, latent_space_size])
-z_in = tfs.placeholder(shape=[batch_size, latent_space_size], name=z_name)  # Latent space (of size 512 * 100)
+z_input_size = [batch_size, latent_space_size]
+z_in = tfs.placeholder(shape=z_input_size, name=z_name)  # Latent space (of size 512 * 100)
 
 wt_init = tf.truncated_normal_initializer(stddev=0.02)
 
 # Setup GAN Graph:
 # Generators:
-g_out = tfs.generator_c(y_image, z_in, input_shape, g_units, wt_init, g_conv_params)
+g_out = tfs.generator_d(y_image, z_in, input_shape, g_units, wt_init, g_conv_params)
 # g_out = tfs.generator_b(z_in, input_shape, g_units, wt_init, g_conv_params)
 # TODO # g_out = tfs.generator(x, l_space)
 # Discriminators:
@@ -108,14 +108,14 @@ with tf.Session(config=config) as sess:
             batch_y_train = x_fake[offset2:(offset2 + batch_size_y)]
         batch_y_train = np.reshape(batch_y_train, [batch_size_y, win_len, 1])
 
-        z_input = np.random.uniform(0, 1.0, size=[batch_size, latent_space_size])
+        z_input = np.random.uniform(0, 1.0, size=z_input_size)
 
         _, d_loss = sess.run([update_D, disc_loss], feed_dict={x: batch_x_train, y: batch_y_train, z_in: z_input})
 
         for j in range(4):
             _, g_loss = sess.run([update_G, gen_loss], feed_dict={y: batch_y_train, z_in: z_input})
 
-        print("i: {0:.2f} / d_loss: {0:.2f} / g_loss: {0:.2f}".format(i, np.sum(d_loss) / batch_size, np.sum(g_loss) / batch_size))
+        print("i: {} / d_loss: {} / g_loss: {}".format(i, np.sum(d_loss) / batch_size, np.sum(g_loss) / batch_size))
 
         if i % 10 == 0:  # PERIODICALLY SAVE MATLAB
             gen_o = sess.run(g_out, feed_dict={y: batch_y_train, z_in: z_input})
