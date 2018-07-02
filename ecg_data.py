@@ -9,6 +9,7 @@ import scipy.stats as st
 
 import matplotlib
 import matplotlib.pyplot as plt
+
 matplotlib.use('PDF')
 
 
@@ -107,7 +108,7 @@ def splitseq(x, n, o):
         except UnboundLocalError:  ## on init
             xx = xpart
     print("output: ", xx.shape)
-    return (xx)
+    return xx
 
 
 def remove_seq_gaps(x, y):
@@ -130,20 +131,21 @@ def remove_seq_gaps(x, y):
             pass
     x, y = x[include, :], y[include, :]
     print(" after shape x,y", x.shape, y.shape)
-    return (x, y)
+    return x, y
 
 
-def normalizesignal(x):
+def normalize_signal(x):
     x = st.zscore(x, ddof=0)
     return x
 
 
-def normalizesignal_array(x):
+def normalize_signal_array(x):
     for i in range(x.shape[0]):
         x[i] = st.zscore(x[i], axis=0, ddof=0)
     return x
 
-def plotecg(x, y, begin, end):
+
+def plot_ecg(x, y, begin, end):
     # helper to plot ecg
     plt.figure(1, figsize=(11.69, 8.27))
     plt.subplot(211)

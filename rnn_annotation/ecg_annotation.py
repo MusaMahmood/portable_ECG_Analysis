@@ -1,22 +1,26 @@
-
 import os
 import glob
 import numpy as np
 import ecg_data as ecg
 import tensorflow as tf
 import matplotlib.pyplot as plt
-import keras.backend.tensorflow_backend as KTF
+import keras.backend.tensorflow_backend as tf_backend
+import keras as k
 
-from keras.layers import Dense, Activation, Dropout
-from keras.layers import LSTM, Bidirectional  # could try TimeDistributed(Dense(...))
+from keras.layers import Dense, Dropout  # Activation
+from keras.layers import Bidirectional, CuDNNLSTM  # , LSTM, CuDNNGRU
+# Try TimeDistributed(Dense(...))
 from keras.models import Sequential, load_model
 from keras import optimizers, regularizers
 from keras.layers.normalization import BatchNormalization
 from matplotlib.backends.backend_pdf import PdfPages
+
 np.random.seed(0)
 
 
 def qtdb_load_dat(dat_files):
+    # xx = []
+    # yy = []
     for dat_file in dat_files:
         print(dat_file)
         if os.path.basename(dat_file).split(".", 1)[0] in exclude:
@@ -28,10 +32,10 @@ def qtdb_load_dat(dat_files):
             x, y = ecg.remove_seq_gaps(x, y)
             x, y = ecg.splitseq(x, 1000, 150), ecg.splitseq(y, 1000, 150)
             # create equal sized numpy arrays of n size and overlap of o
-            x = ecg.normalizesignal_array(x)
+            x = ecg.normalize_signal_array(x)
             # todo; add noise, shuffle leads etc. ?
             try:  # concat
-                xx = np.vstack((xx, x))
+                xx = np.vstack((xx, x))  # n, 1300, 2
                 yy = np.vstack((yy, y))
             except NameError:  # if xx does not exist yet (on init)
                 xx = x
@@ -45,7 +49,7 @@ def unison_shuffled_copies(a, b):
     return a[p], b[p]
 
 
-def get_session(gpu_fraction=0.8):
+def get_session(gpu_fraction=0.9):
     # allocate % of gpu memory.
     num_threads = os.environ.get('OMP_NUM_THREADS')
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=gpu_fraction)
@@ -55,21 +59,28 @@ def get_session(gpu_fraction=0.8):
         return tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
 
 
-def getmodel():
+def get_model_v2():
     model = Sequential()
-    model.add(Dense(32, W_regularizer=regularizers.l2(l=0.01), input_shape=(seqlength, features)))
-    model.add(Bidirectional(LSTM(32, return_sequences=True)))
+    model.add(k.layers.Conv2D(32, (2, 2), strides=(2, 1), padding='same', activation='relu',
+                              input_shape=(seqlength, features, 1)))
+    return model
+
+
+def get_model():
+    model = Sequential()
+    model.add(Dense(32, kernel_regularizer=regularizers.l2(l=0.01), input_shape=(seqlength, features)))
+    model.add(Bidirectional(CuDNNLSTM(32, return_sequences=True)))
     # , input_shape=(seqlength, features)) ) # bidirectional ---><---
     model.add(Dropout(0.2))
     model.add(BatchNormalization())
-    model.add(Dense(64, activation='relu', W_regularizer=regularizers.l2(l=0.01)))
+    model.add(Dense(64, activation='relu', kernel_regularizer=regularizers.l2(l=0.01)))
     model.add(Dropout(0.2))
     model.add(BatchNormalization())
     model.add(Dense(dimout, activation='softmax'))
     adam = optimizers.adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
     model.compile(loss='categorical_crossentropy', optimizer=adam, metrics=['accuracy'])
     print(model.summary())
-    return (model)
+    return model
 
 
 ##################################################################
@@ -81,18 +92,6 @@ percv = 0.19  # percentage validation
 exclude = set()
 exclude.update(
     ["sel35", "sel36", "sel37", "sel50", "sel102", "sel104", "sel221", "sel232", "sel310"])  # no P annotated:
-##################################################################
-# datfile=qtdbpath+"sel49.dat"  # single ECG to test if loading works.
-# x,y=get_ecg_data(datfile)
-# print(x.shape,y.shape)
-# # for i in range(y.shape[0]): #Invert QT-label to actually represent QT. Does give overlapping labels
-# # 	y[i][0] = 1 - y[i][0]
-# plotecg(x,y,0,y.shape[0]) # plot all
-# x,y=remove_seq_gaps(x,y) # remove 'annotation gaps'
-# plotecg(x,y,0,y.shape[0]) # plot all
-# x,y=splitseq(x,750,150),splitseq(y,750,150) # create equal sized numpy arrays of n size and overlap of o
-# exit()
-##################################################################
 
 # load data
 datfiles = glob.glob(qtdbpath + "*.dat")
@@ -103,25 +102,19 @@ seqlength = xxt.shape[1]
 features = xxt.shape[2]
 dimout = yyt.shape[2]
 print("xxv/validation shape: {}, Seqlength: {}, Features: {}".format(xxv.shape[0], seqlength, features))
-# #plot validation ecgs
-# with PdfPages('ecgs_xxv.pdf') as pdf:
-# 	for i in range( xxv.shape[0] ):
-# 		print (i)
-# 		plotecg(xxv[i,:,:],yyv[i,:,:],0,yyv.shape[1])
-# 		pdf.savefig()
-# 		plt.close()
 
 # call keras/tensorflow and build lstm model
-KTF.set_session(get_session())
-with tf.device('/cpu:0'):  # switch to /cpu:0 to use cpu
-    if not os.path.isfile('model.h5'):
-        model = getmodel()  # build model
-        model.fit(xxt, yyt, batch_size=512, epochs=100, verbose=1)  # train the model
-        model.save('model.h5')
+tf_backend.set_session(get_session())
+with tf.device('/gpu:0'):  # switch to /cpu:0 to use cpu
+    # if not os.path.isfile('model.h5'):
+    model = get_model()  # build model
+    model.fit(xxt, yyt, batch_size=512, epochs=500, verbose=1)  # train the model
+    model.save('model.h5')
 
-    model = load_model('model.h5')
-    score, acc = model.evaluate(xxv, yyv, batch_size=16, verbose=1)
-    print('Test score: {} , Test accuracy: {}'.format(score, acc))
+    if os.path.isfile('model.h5'):
+        model = load_model('model.h5')
+        score, acc = model.evaluate(xxv, yyv, batch_size=16, verbose=1)
+        print('Test score: {} , Test accuracy: {}'.format(score, acc))
 
     # predict
     yy_predicted = model.predict(xxv)
@@ -140,5 +133,3 @@ with tf.device('/cpu:0'):  # switch to /cpu:0 to use cpu
                                    yy_predicted.shape[1])  # top = predicted, bottom=true
             pdf.savefig()
             plt.close()
-
-# plotecg(xv[1,:,:],yv[1,:,:],0,yv.shape[1]) # plot first seq

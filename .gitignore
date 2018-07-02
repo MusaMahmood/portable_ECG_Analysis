@@ -36,3 +36,5 @@ __pycache__/
 *.mat
 model_exports/
 rnn_annotation/qtdb/
+*.h5
+*.pdf
