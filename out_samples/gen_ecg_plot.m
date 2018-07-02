@@ -1,7 +1,7 @@
 %
 clr;
 % dir = 'flexEcg_gan/';
-dir = 'flexEcggan_GenD_v4/';
+dir = 'flexEcggan_GenE_v1/';
 list = 0:10:10000;
 for i = 1:length(list)
     if exist([dir num2str(list(i)) '.mat'])
@@ -13,7 +13,7 @@ for j = 1:2
     offset = (j-1)*100;
     for i = 1:100
         figure(10 + j); subplot(10, 10, i);
-        plot( squeeze(gen_all(i + offset, :, 1)) );
+        plot( squeeze(gen_all(i + offset, :, 1)) ); ylim([0, 1]);
     end
 end
 

@@ -24,7 +24,7 @@ x_fake, y_fake = tfs.load_data(TRAINING_FOLDER, [win_len], key_x='relevant_data'
 # np.random.shuffle(x_fake)
 # TODO: Change to normal ECG Only.
 x_real, y_real = tfs.load_data(TRAINING_FOLDER_2, [win_len, 2], key_x='relevant_data', key_y='Y', shuffle=True)
-Model_description = src + 'gan_GenD_v4'
+Model_description = src + 'gan_GenE_v1'
 output_folder_name = "out_samples/" + Model_description + "/"
 
 g_conv_params = [[[3, 3], [1, 1]], [[3, 3], [1, 1]], [[3, 3], [1, 1]]]  # [ [c1k, c1s] [c2k, c1s] [c3k, c3s] ]
@@ -62,7 +62,7 @@ wt_init = tf.truncated_normal_initializer(stddev=0.02)
 
 # Setup GAN Graph:
 # Generators:
-g_out = tfs.generator_d(y_image, z_in, input_shape, g_units, wt_init, g_conv_params)
+g_out = tfs.generator_e(y_image, z_in, input_shape, g_units, wt_init, g_conv_params)
 # g_out = tfs.generator_b(z_in, input_shape, g_units, wt_init, g_conv_params)
 # TODO # g_out = tfs.generator(x, l_space)
 # Discriminators:

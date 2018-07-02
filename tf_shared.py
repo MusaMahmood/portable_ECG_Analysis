@@ -15,23 +15,37 @@ from tensorflow.python.tools import optimize_for_inference_lib
 from sklearn import metrics as skmet
 
 
-# GAN:
-# def generator_a(inputs, latent_space):
-# input_shape = np.shape(inputs)
-# tf.nn.conv2d(inputs, latent_space, strides=[1,1,1,1], padding='SAME')
-#     return 0
-
-
 def lrelu(x, a=0.2, name='lrelu'):
     return tf.nn.leaky_relu(x, a, name=name)
+
+
+def generator_e(y_input, latent_space, output_shape, fc_units, wt_init, c_params):
+    batch_size = get_tensor_shape(latent_space)[0]
+    fc_output_units = output_shape[0] // 4 * output_shape[1] * fc_units
+    with tf.variable_scope("Generator"):
+        # Conv:
+        ec1 = conv2d_layer(y_input, 64, [3, 3], [2, 2], wt_init, 'e_c1')
+        ec2 = conv2d_layer(ec1, 128, [2, 2], [2, 2], wt_init, 'e_c2')
+        # ~ ADD Latent Vars:
+        norm_input = tf.layers.batch_normalization(latent_space)
+        fc1 = fc_layer(norm_input, fc_output_units, wt_init, name='g_fc1')
+        fc1 = reshape(fc1, batch_size, output_shape[0] // 4, output_shape[1], fc_units)
+        l_var = tf.add(ec2, fc1, name='l_var')
+        # Deconv:
+        dc1 = conv2d_layer(l_var, fc_units, c_params[0][0], c_params[0][1], wt_init, name='g_c1')
+        dc1 = reshape(dc1, batch_size, output_shape[0] // 2, output_shape[1], fc_units // 2)
+        dc2 = conv2d_layer(dc1, fc_units // 2, c_params[1][0], c_params[1][1], wt_init, name='g_c2')
+        dc2 = reshape(dc2, batch_size, output_shape[0], output_shape[1], fc_units // 4)
+        dc3 = conv2d_layer(dc2, 1, c_params[2][0], c_params[2][1], wt_init, name='g_c3', norm=False, init_weights=False,
+                           activation=tf.nn.tanh)  # ALSO tf.nn.elu WORKS
+        return dc3
 
 
 def generator_d(y_input, latent_space, output_shape, fc_units, wt_init, c_params):
     batch_size = get_tensor_shape(latent_space)[0]
     # batch_size = get_tensor_shape(y_input)[0]
-    fc_output_units = output_shape[0] // 4 * output_shape[1] * fc_units
     with tf.variable_scope("Generator"):
-        # norm_input = tf.layers.batch_normalization(latent_space)
+        norm_input = tf.layers.batch_normalization(latent_space)
         ec1 = conv2d_layer(y_input, 64, [3, 3], [2, 2], wt_init, 'e_c1')
         ec2 = conv2d_layer(ec1, 128, [2, 2], [2, 2], wt_init, 'e_c2')
         # Deconv:
@@ -40,7 +54,7 @@ def generator_d(y_input, latent_space, output_shape, fc_units, wt_init, c_params
         dc2 = conv2d_layer(dc1, fc_units // 2, c_params[1][0], c_params[1][1], wt_init, name='g_c2')
         dc2 = reshape(dc2, batch_size, output_shape[0], output_shape[1], fc_units // 4)
         dc3 = conv2d_layer(dc2, 1, c_params[2][0], c_params[2][1], wt_init, name='g_c3', norm=False, init_weights=False,
-                          activation=tf.nn.tanh)  # ALSO tf.nn.elu WORKS
+                           activation=tf.nn.tanh)  # ALSO tf.nn.elu WORKS
         return dc3
 
 
