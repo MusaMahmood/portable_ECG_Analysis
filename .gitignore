@@ -35,3 +35,4 @@ data/
 __pycache__/
 *.mat
 model_exports/
+rnn_annotation/qtdb/
