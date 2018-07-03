@@ -7,15 +7,40 @@ import matplotlib.pyplot as plt
 import keras.backend.tensorflow_backend as tf_backend
 import keras as k
 
-from keras.layers import Dense, Dropout  # Activation
-from keras.layers import Bidirectional, CuDNNLSTM  # , LSTM, CuDNNGRU
 # Try TimeDistributed(Dense(...))
-from keras.models import Sequential, load_model
+from scipy.io import loadmat, savemat
+from sklearn import preprocessing as pre
+from keras.layers import Dense, Dropout  # Activation
 from keras import optimizers, regularizers
-from keras.layers.normalization import BatchNormalization
+from keras.models import Sequential, load_model
+from keras.layers import Bidirectional, CuDNNLSTM  # , LSTM, CuDNNGRU
 from matplotlib.backends.backend_pdf import PdfPages
+from keras.layers.normalization import BatchNormalization
 
 np.random.seed(0)
+
+
+def rescale_minmax(np_array, min_bound=0, max_bound=1):
+    """
+    Rescales features between [0, 1]
+    :param np_array: input - Assumes 3D array of 1D data: [samples, data, channels]
+    :param min_bound:
+    :param max_bound:
+    :return:
+    """
+    samples = np_array.shape[0]
+    channels = np_array.shape[2]
+    for s in range(0, samples):
+        for ch in range(0, channels):
+            segment = np_array[s, :, ch]
+            minv = np.min(segment)
+            maxv = np.max(segment)
+            # Rescale:
+            a = segment - minv
+            b = np.divide(a, (maxv - minv))
+            c = np.multiply(b, (max_bound - min_bound))
+            np_array[s, :, ch] = min_bound + c
+    return np_array
 
 
 def qtdb_load_dat(dat_files):
@@ -40,6 +65,8 @@ def qtdb_load_dat(dat_files):
             except NameError:  # if xx does not exist yet (on init)
                 xx = x
                 yy = y
+    # Rescale x:
+    xx = rescale_minmax(xx)
     return xx, yy
 
 
@@ -61,8 +88,21 @@ def get_session(gpu_fraction=0.9):
 
 def get_model_v2():
     model = Sequential()
-    model.add(k.layers.Conv2D(32, (2, 2), strides=(2, 1), padding='same', activation='relu',
+    model.add(k.layers.Reshape((seqlength, features, 1), input_shape=(seqlength, features)))
+    model.add(k.layers.Conv2D(128, (2, 2), strides=(1, 2), padding='same', activation='relu',
                               input_shape=(seqlength, features, 1)))
+    model.add(k.layers.Reshape(target_shape=(seqlength, 1 * 128)))
+    model.add(Dense(32, kernel_regularizer=regularizers.l2(l=0.01), input_shape=(seqlength, 1 * 128)))
+    model.add(Bidirectional(CuDNNLSTM(32, return_sequences=True)))
+    model.add(Dropout(0.2))
+    model.add(BatchNormalization())
+    model.add(Dense(64, activation='relu', kernel_regularizer=regularizers.l2(l=0.01)))
+    model.add(Dropout(0.2))
+    model.add(BatchNormalization())
+    model.add(Dense(6, activation='softmax'))
+    adam = optimizers.adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+    model.compile(loss='categorical_crossentropy', optimizer=adam, metrics=['accuracy'])
+    print(model.summary())
     return model
 
 
@@ -83,8 +123,6 @@ def get_model():
     return model
 
 
-##################################################################
-##################################################################
 qtdbpath = "qtdb/"  # first argument = qtdb database from physionet.
 perct = 0.81  # percentage training
 percv = 0.19  # percentage validation
@@ -108,7 +146,8 @@ tf_backend.set_session(get_session())
 with tf.device('/gpu:0'):  # switch to /cpu:0 to use cpu
     # if not os.path.isfile('model.h5'):
     model = get_model()  # build model
-    model.fit(xxt, yyt, batch_size=512, epochs=500, verbose=1)  # train the model
+    # model = get_model_v2()
+    model.fit(xxt, yyt, batch_size=588, epochs=250, verbose=1)  # train the model
     model.save('model.h5')
 
     if os.path.isfile('model.h5'):
@@ -125,10 +164,14 @@ with tf.device('/gpu:0'):  # switch to /cpu:0 to use cpu
         b[np.arange(len(yy_predicted[i, :, :])), yy_predicted[i, :, :].argmax(1)] = 1
         yy_predicted[i, :, :] = b
 
+    # save:
+    savemat('data.mat', mdict={'x_val': xxv, 'y_val': yyv, 'y_out': yy_predicted})
+
     # plot:
     with PdfPages('ecg.pdf') as pdf:
         for i in range(xxv.shape[0]):
             print(i)
+            # TODO: Save as .mat file, (as well as PDF).
             ecg.plotecg_validation(xxv[i, :, :], yy_predicted[i, :, :], yyv[i, :, :], 0,
                                    yy_predicted.shape[1])  # top = predicted, bottom=true
             pdf.savefig()
