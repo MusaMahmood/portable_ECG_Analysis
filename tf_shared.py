@@ -2,6 +2,7 @@
 # Python 3.6.3
 # TF 1.5.0
 
+import os
 import glob
 import numpy as np
 import pandas as pd
@@ -20,6 +21,11 @@ from sklearn import metrics as skmet
 # input_shape = np.shape(inputs)
 # tf.nn.conv2d(inputs, latent_space, strides=[1,1,1,1], padding='SAME')
 #     return 0
+
+def prep_dir(directory):
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    return directory
 
 
 def lrelu(x, a=0.2, name='lrelu'):
