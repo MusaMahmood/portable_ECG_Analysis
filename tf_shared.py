@@ -22,6 +22,37 @@ from sklearn import metrics as skmet
 # tf.nn.conv2d(inputs, latent_space, strides=[1,1,1,1], padding='SAME')
 #     return 0
 
+def maximize_output_probabilities(array):
+    for i in range(array.shape[0]):
+        b = np.zeros_like(array[i, :, :])
+        b[np.arange(len(array[i, :, :])), array[i, :, :].argmax(1)] = 1
+        array[i, :, :] = b
+    return array
+
+
+def rescale_minmax(np_array, min_bound=0, max_bound=1):
+    """
+    Rescales features between [0, 1]
+    :param np_array: input - Assumes 3D array of 1D data: [samples, data, channels]
+    :param min_bound: minimum value of rescaled vector
+    :param max_bound: maximum value of rescaled vector
+    :return:
+    """
+    samples = np_array.shape[0]
+    channels = np_array.shape[2]
+    for s in range(0, samples):
+        for ch in range(0, channels):
+            segment = np_array[s, :, ch]
+            minv = np.min(segment)
+            maxv = np.max(segment)
+            # Rescale:
+            a = segment - minv
+            b = np.divide(a, (maxv - minv))
+            c = np.multiply(b, (max_bound - min_bound))
+            np_array[s, :, ch] = min_bound + c
+    return np_array
+
+
 def prep_dir(directory):
     if not os.path.exists(directory):
         os.makedirs(directory)
