@@ -20,8 +20,9 @@ from keras.layers.normalization import BatchNormalization
 np.random.seed(0)
 
 output_folder = 'data_out/'
-version_num = 0
+version_num = 2
 file_name = 'data_v' + str(version_num)
+prescale_data = False
 
 
 def rescale_minmax(np_array, min_bound=0, max_bound=1):
@@ -70,7 +71,8 @@ def qtdb_load_dat(dat_files):
                 xx = x
                 yy = y
     # Rescale x:
-    xx = rescale_minmax(xx)
+    if prescale_data:
+        xx = rescale_minmax(xx)
     return xx, yy
 
 
@@ -170,9 +172,9 @@ print("xxv/validation shape: {}, Seqlength: {}, Features: {}".format(xxv.shape[0
 # call keras/tensorflow and build lstm model
 tf_backend.set_session(get_session())
 with tf.device('/gpu:0'):  # switch to /cpu:0 to use cpu
-    # if not os.path.isfile('model.h5'):
     start_time_ms = tfs.current_time_ms()
-    model = get_model_seq2seq()
+    # model = get_model_seq2seq()
+    model = get_model()
     model.fit(xxt, yyt, batch_size=588, epochs=250, verbose=1)  # train the model
     model.save('model.h5')
 
