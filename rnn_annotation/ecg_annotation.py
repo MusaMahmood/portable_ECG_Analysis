@@ -2,14 +2,14 @@ import os
 import glob
 import numpy as np
 import ecg_data as ecg
+import tf_shared as tfs
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import keras.backend.tensorflow_backend as tf_backend
 import keras as k
 
 # Try TimeDistributed(Dense(...))
-from scipy.io import loadmat, savemat
-from sklearn import preprocessing as pre
+from scipy.io import savemat
 from keras.layers import Dense, Dropout  # Activation
 from keras import optimizers, regularizers
 from keras.models import Sequential, load_model
@@ -18,6 +18,10 @@ from matplotlib.backends.backend_pdf import PdfPages
 from keras.layers.normalization import BatchNormalization
 
 np.random.seed(0)
+
+output_folder = 'data_out/'
+version_num = 0
+file_name = 'data_v' + str(version_num)
 
 
 def rescale_minmax(np_array, min_bound=0, max_bound=1):
@@ -86,6 +90,26 @@ def get_session(gpu_fraction=0.9):
         return tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
 
 
+def get_model_seq2seq():
+    model = Sequential()
+    model.add(k.layers.Reshape((seqlength, features, 1), input_shape=(seqlength, features)))
+    model.add(k.layers.Conv2D(128, (2, 2), strides=(2, 2), padding='same', activation='relu'))
+    model.add(k.layers.Conv2D(256, (8, 1), strides=(2, 1), padding='same', activation='relu'))
+    model.add(k.layers.Reshape(target_shape=(seqlength, 1 * 64)))
+    model.add(Dense(32, kernel_regularizer=regularizers.l2(l=0.01), input_shape=(seqlength, 1 * 128)))
+    model.add(Bidirectional(CuDNNLSTM(32, return_sequences=True)))
+    model.add(Dropout(0.2))
+    model.add(BatchNormalization())
+    model.add(Dense(64, activation='relu', kernel_regularizer=regularizers.l2(l=0.01)))
+    model.add(Dropout(0.2))
+    model.add(BatchNormalization())
+    model.add(Dense(6, activation='softmax'))
+    adam = optimizers.adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+    model.compile(loss='categorical_crossentropy', optimizer=adam, metrics=['accuracy'])
+    print(model.summary())
+    return model
+
+
 def get_model_v2():
     model = Sequential()
     model.add(k.layers.Reshape((seqlength, features, 1), input_shape=(seqlength, features)))
@@ -136,6 +160,8 @@ datfiles = glob.glob(qtdbpath + "*.dat")
 xxt, yyt = qtdb_load_dat(datfiles[:round(len(datfiles) * perct)])  # training data.
 xxt, yyt = unison_shuffled_copies(xxt, yyt)  # shuffle
 xxv, yyv = qtdb_load_dat(datfiles[-round(len(datfiles) * percv):])  # validation data.
+
+# xx_flex, yy_flex = tfs.load_data('ourdata', image_shape=(1300, 2))
 seqlength = xxt.shape[1]
 features = xxt.shape[2]
 dimout = yyt.shape[2]
@@ -145,8 +171,8 @@ print("xxv/validation shape: {}, Seqlength: {}, Features: {}".format(xxv.shape[0
 tf_backend.set_session(get_session())
 with tf.device('/gpu:0'):  # switch to /cpu:0 to use cpu
     # if not os.path.isfile('model.h5'):
-    model = get_model()  # build model
-    # model = get_model_v2()
+    start_time_ms = tfs.current_time_ms()
+    model = get_model_seq2seq()
     model.fit(xxt, yyt, batch_size=588, epochs=250, verbose=1)  # train the model
     model.save('model.h5')
 
@@ -158,21 +184,34 @@ with tf.device('/gpu:0'):  # switch to /cpu:0 to use cpu
     # predict
     yy_predicted = model.predict(xxv)
 
-    # maximize probabilities of prediction.
+    print('Elapsed Time (ms): ', tfs.current_time_ms() - start_time_ms)
+
+    # maximize probabilities of prediction. TODO: Remove this.
     for i in range(yyv.shape[0]):
         b = np.zeros_like(yy_predicted[i, :, :])
         b[np.arange(len(yy_predicted[i, :, :])), yy_predicted[i, :, :].argmax(1)] = 1
         yy_predicted[i, :, :] = b
 
     # save:
-    savemat('data.mat', mdict={'x_val': xxv, 'y_val': yyv, 'y_out': yy_predicted})
+    # if not os.path.exists(output_folder + 'data.mat'):
+    #     os.makedirs(output_folder + 'data.mat')
+    savemat(tfs.prep_dir(output_folder) + file_name + '.mat', mdict={'x_val': xxv, 'y_val': yyv, 'y_out': yy_predicted})
 
     # plot:
-    with PdfPages('ecg.pdf') as pdf:
-        for i in range(xxv.shape[0]):
-            print(i)
-            # TODO: Save as .mat file, (as well as PDF).
-            ecg.plotecg_validation(xxv[i, :, :], yy_predicted[i, :, :], yyv[i, :, :], 0,
-                                   yy_predicted.shape[1])  # top = predicted, bottom=true
-            pdf.savefig()
-            plt.close()
+    for i in range(xxv.shape[0]):
+        print(i)
+        # TODO: Save as .mat file, (as well as PDF).
+        ecg.plotecg_validation(xxv[i, :, :], yy_predicted[i, :, :], yyv[i, :, :], 0, yy_predicted.shape[1])
+        # top = predicted, bottom=true
+        # pdf.savefig()
+        plt.close()
+
+
+    # with PdfPages(output_folder + 'ecg' + file_name + '.pdf') as pdf:
+    #     for i in range(xxv.shape[0]):
+    #         print(i)
+    #         # TODO: Save as .mat file, (as well as PDF).
+    #         ecg.plotecg_validation(xxv[i, :, :], yy_predicted[i, :, :], yyv[i, :, :], 0, yy_predicted.shape[1])
+    #         # top = predicted, bottom=true
+    #         pdf.savefig()
+    #         plt.close()
