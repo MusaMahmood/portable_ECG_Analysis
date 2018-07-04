@@ -5,6 +5,7 @@ import os
 import wfdb
 import math
 import numpy as np
+import tf_shared as tfs
 import scipy.stats as st
 
 import matplotlib
@@ -16,6 +17,34 @@ matplotlib.use('PDF')
 # TODO: Create/use rescale-minmax function instead
 
 # Functions
+
+def qtdb_load_dat(dat_files, exclude, prescale_data=False):
+    # xx = []
+    # yy = []
+    for dat_file in dat_files:
+        print(dat_file)
+        if os.path.basename(dat_file).split(".", 1)[0] in exclude:
+            continue
+        qf = os.path.splitext(dat_file)[0] + '.q1c'
+        if os.path.isfile(qf):
+            x, y = get_ecg_data(dat_file)
+            x, y = remove_seq_gaps(x, y)
+            x, y = splitseq(x, 1000, 150), splitseq(y, 1000, 150)
+            # create equal sized numpy arrays of n size and overlap of o
+            x = normalize_signal_array(x)
+            # todo; add noise, shuffle leads etc. ?
+            try:  # concat
+                xx = np.vstack((xx, x))  # n, 1300, 2
+                yy = np.vstack((yy, y))
+            except NameError:  # if xx does not exist yet (on init)
+                xx = x
+                yy = y
+    # Rescale x:
+    if prescale_data:
+        xx = tfs.rescale_minmax(xx)
+    return xx, yy
+
+
 def get_ecg_data(datfile):
     ## convert .dat/q1c to numpy arrays
     recordname = os.path.basename(datfile).split(".dat")[0]
@@ -97,6 +126,7 @@ def splitseq(x, n, o):
             xpart = padded
         else:
             xpart = x[i - o:i + n + o, :]
+
         if xpart.shape[0] < i:
             padded = np.zeros((o + n + o, xpart.shape[1]))  ## pad with 0's on end of seq
             padded[:xpart.shape[0], :xpart.shape[1]] = xpart
