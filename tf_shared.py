@@ -33,7 +33,7 @@ def maximize_output_probabilities(array):
 def rescale_minmax(np_array, min_bound=0, max_bound=1):
     """
     Rescales features between [0, 1]
-    :param np_array: input - Assumes 3D array of 1D data: [samples, data, channels]
+    :param np_array: input - Assumes 3D array of 1D data: [samples, 1-D data, channels]
     :param min_bound: minimum value of rescaled vector
     :param max_bound: maximum value of rescaled vector
     :return:

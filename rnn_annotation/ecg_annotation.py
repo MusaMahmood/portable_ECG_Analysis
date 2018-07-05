@@ -12,16 +12,22 @@ from scipy.io import savemat
 from keras.layers import Dense, Dropout  # Activation
 from keras import optimizers, regularizers
 from keras.models import Sequential, load_model
-from keras.layers import Bidirectional, CuDNNLSTM  # , LSTM, CuDNNGRU
+from keras.layers import Bidirectional, CuDNNLSTM, CuDNNGRU  # , LSTM, CuDNNGRU
 from keras.layers.normalization import BatchNormalization
 
 np.random.seed(0)
 
 output_folder = 'data_out/'
-version_num = 4
-file_name = 'data_1ch_v' + str(version_num)
+version_num = 0
+LSTM_UNITS = 32
+description = 'seq2aeq_prescal_' + 'lstmU' + str(LSTM_UNITS)
+file_name = description
+use_orig_model = False
 prescale_data = True
 ch1_only = True
+gru = False
+
+train_batch_size = 588  # for more complex models use 256
 
 
 def unison_shuffled_copies(a, b):
@@ -49,8 +55,11 @@ def get_model_seq2seq():
     model.add(k.layers.Conv2D(128, (2, 2), strides=(2, 1), padding='same', activation='relu'))
     model.add(k.layers.Conv2D(256, (8, 1), strides=(2, 1), padding='same', activation='relu'))
     model.add(k.layers.Reshape(target_shape=(seqlength, 1 * 64)))
-    model.add(Dense(32, kernel_regularizer=regularizers.l2(l=0.01), input_shape=(seqlength, 1 * 128)))
-    model.add(Bidirectional(CuDNNLSTM(32, return_sequences=True)))
+    model.add(Dense(LSTM_UNITS, kernel_regularizer=regularizers.l2(l=0.01), input_shape=(seqlength, 1 * 128)))
+    if gru:
+        model.add(Bidirectional(CuDNNGRU(LSTM_UNITS, return_sequences=True)))
+    else:
+        model.add(Bidirectional(CuDNNLSTM(LSTM_UNITS, return_sequences=True)))
     model.add(Dropout(0.2))
     model.add(BatchNormalization())
     model.add(Dense(64, activation='relu', kernel_regularizer=regularizers.l2(l=0.01)))
@@ -121,9 +130,12 @@ print("xxv/validation shape: {}, Seqlength: {}, Features: {}".format(xxv.shape[0
 tf_backend.set_session(get_session())
 with tf.device('/gpu:0'):  # switch to /cpu:0 to use cpu
     start_time_ms = tfs.current_time_ms()
-    model = get_model_seq2seq()
-    # model = get_model()
-    model.fit(xxt, yyt, batch_size=588, epochs=250, verbose=1)  # train the model
+    if use_orig_model:
+        model = get_model()
+    else:
+        model = get_model_seq2seq()
+
+    model.fit(xxt, yyt, batch_size=train_batch_size, epochs=250, verbose=1)  # train the model
     model.save('model.h5')
 
     if os.path.isfile('model.h5'):
