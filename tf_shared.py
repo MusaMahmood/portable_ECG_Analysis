@@ -23,11 +23,12 @@ from sklearn import metrics as skmet
 #     return 0
 
 def maximize_output_probabilities(array):
+    array_out = np.copy(array)
     for i in range(array.shape[0]):
         b = np.zeros_like(array[i, :, :])
         b[np.arange(len(array[i, :, :])), array[i, :, :].argmax(1)] = 1
-        array[i, :, :] = b
-    return array
+        array_out[i, :, :] = b
+    return array_out
 
 
 def rescale_minmax(np_array, min_bound=0, max_bound=1):
