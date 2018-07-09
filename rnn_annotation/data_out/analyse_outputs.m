@@ -1,16 +1,23 @@
 clr;
-load('data_1ch_v4.mat'); % Great results (basic model??)
+% load('seq2seq_data_1ch_v4.mat'); % Great results (Conv2d + BiLSTM)
+% load('origmodel_prescal_data_1ch_v0.mat'); % Original LSTM-only
+% load('gru_prescal_data_1ch_v0.mat'); % Too much noise/confusion
+load('seq2seq_prescal_lstmU32.mat'); % near perfect annotation. 
 CH1_ONLY = size(x_val, 3) - 1; 
 if exist('x_flex', 'var')
     for s = 1:size(x_flex,1)
-        sample = squeeze(x_flex(s, :));
+        sample =squeeze(x_flex(s, :));
         y_label = squeeze(y_flex(s, :, :));
-        figure(1); subplot(2, 1, 1); plot(sample); hold on; plot(y_label); 
-        subplot(2, 1, 2); plot(y_label); title('Predicted Annot');
+        [~, yl2] = max(y_label, [], 2);
+        figure(1); subplot(2, 1, 1); plot(sample); hold on; plot(yl2); xlim([0, 1300]);
+        subplot(2, 1, 2); plot(y_label); title('Predicted Annot'); xlim([0, 1300]);
+        figure(2); subplot(2, 1, 1); plot(sample); subplot(2, 1, 2);
+        plot(squeeze(y_flex_prob(s, :, :)));
         xca = input('A1 Continue ? \n'); clf(1);
     end
 end
 
+%{
 if ~CH1_ONLY
     for s = 1:size(x_val,1)
         sample = squeeze(x_val(s, :));
@@ -32,4 +39,6 @@ else
         xca = input('Continue ? \n'); clf(1);
     end
 end
+%}
+
 % 1ch version
