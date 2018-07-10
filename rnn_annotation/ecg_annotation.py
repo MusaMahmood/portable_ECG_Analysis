@@ -119,7 +119,7 @@ else:
     input_shape = (seq_length, features)
 
 if ch1_only:
-    xx_flex, yy_flex = tfs.load_data('flexEcg_bilstm_test2', image_shape=[1300], key_x='relevant_data', key_y='Y')
+    xx_flex, yy_flex = tfs.load_data('flexEcg_bilstm_test2', [1300], key_x='relevant_data', key_y='Y')
 else:
     xx_flex = np.zeros([1, 1300, 2])
 

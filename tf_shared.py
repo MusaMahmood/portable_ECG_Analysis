@@ -22,6 +22,16 @@ from sklearn import metrics as skmet
 # tf.nn.conv2d(inputs, latent_space, strides=[1,1,1,1], padding='SAME')
 #     return 0
 
+def get_session(gpu_fraction=0.9):
+    # allocate % of gpu memory.
+    num_threads = os.environ.get('OMP_NUM_THREADS')
+    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=gpu_fraction)
+    if num_threads:
+        return tf.Session(config=tf.ConfigProto(gpu_options=gpu_options, intra_op_parallelism_threads=num_threads))
+    else:
+        return tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
+
+
 def maximize_output_probabilities(array):
     array_out = np.copy(array)
     for i in range(array.shape[0]):
@@ -291,6 +301,25 @@ def check_prediction(y, outputs):
     prediction = tf.argmax(outputs, 1)
     correct_class = tf.argmax(y, 1)
     return tf.equal(prediction, correct_class), prediction
+
+
+def load_data_v2(data_directory, x_shape, y_shape, key_x, key_y, shuffle=False, ind2vec=False):
+    x_train_data = np.empty([0, *x_shape], np.float32)
+    y_train_data = np.empty([0, *y_shape], np.float32)
+    training_files = glob.glob(data_directory + "/*.mat")
+    for f in training_files:
+        print('Loading file: ', f)
+        x_array = loadmat(f).get(key_x)
+        y_array = loadmat(f).get(key_y)
+        x_train_data = np.concatenate((x_train_data, x_array), axis=0)
+        y_train_data = np.concatenate((y_train_data, y_array), axis=0)
+    if shuffle:
+        np.random.shuffle(x_train_data)
+    if ind2vec:
+        y_train_data = np.asarray(pd.get_dummies(y_train_data).values).astype(np.float32)
+    # return data_array
+    print("Loaded Data Shape: X:", x_train_data.shape, " Y: ", y_train_data.shape)
+    return x_train_data, y_train_data
 
 
 def load_data(data_directory, image_shape, key_x, key_y, shuffle=False):
