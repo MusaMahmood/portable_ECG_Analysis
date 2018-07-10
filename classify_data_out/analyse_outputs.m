@@ -1,5 +1,6 @@
 clr;
-load('seq2seq_prescal_lstmU32v2.mat'); % near perfect annotation. 
+% load('cnn2lU1024v0.mat'); % near perfect annotation. 
+load('seq2seq_prescal_lstmU32v3.mat');
 CH1_ONLY = size(x_val, 3) - 1; 
 if exist('x_val', 'var')
     for s = 1:size(x_val,1)
@@ -14,11 +15,12 @@ if exist('x_val', 'var')
         xca = input('A1 Continue ? \n'); 
     end
 end
-
-y_true = reshape(y_val, [14705*1000, 5]);
-y_pred = reshape(y_out, [14705*1000, 5]);
+s = size(y_val);
+y_true = reshape(y_val, [s(1)*1000, 5]);
+y_pred = reshape(y_out, [s(1)*1000, 5]);
 sum(y_true)
 sum(y_pred)
+
 %{
 if ~CH1_ONLY
     for s = 1:size(x_val,1)
