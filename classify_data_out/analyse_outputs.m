@@ -2,10 +2,11 @@ clr;
 % load('seq2seq_only_prescal_lstmU32v3.mat'); % decent
 % load('cnn2layerU1024v0.mat'); % complete trash
 % load('conv_seq2seq_prescal_lstmU32v0.mat');
-load('n2ch\conv_seq2seq_prescal_lstmU32lr0.01v0.mat');
+% load('n2ch\conv_seq2seq_prescal_lstmU32lr0.01v0.mat');
+load('n1ch\conv_seq2seq_prescal_prelu_lstmU32lr0.01v0.mat');
 CH1_ONLY = size(x_val, 3) - 1; 
 if exist('x_val', 'var')
-    for s = 6307:50:size(x_val,1)
+    for s = 6307:1:size(x_val,1)
         fprintf('Sample #: %d \n', s); 
         sample =squeeze(x_val(s, :, :));
         y_sample = squeeze(y_out(s, :, :));
