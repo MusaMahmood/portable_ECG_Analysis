@@ -1,17 +1,22 @@
 clr;
-% load('cnn2lU1024v0.mat'); % near perfect annotation. 
-load('seq2seq_prescal_lstmU32v3.mat');
+% load('seq2seq_only_prescal_lstmU32v3.mat'); % decent
+% load('cnn2layerU1024v0.mat'); % complete trash
+% load('conv_seq2seq_prescal_lstmU32v0.mat');
+load('n2ch\conv_seq2seq_prescal_lstmU32lr0.01v0.mat');
 CH1_ONLY = size(x_val, 3) - 1; 
 if exist('x_val', 'var')
-    for s = 1:size(x_val,1)
+    for s = 6307:50:size(x_val,1)
         fprintf('Sample #: %d \n', s); 
         sample =squeeze(x_val(s, :, :));
         y_sample = squeeze(y_out(s, :, :));
         [~, yl2] = max(y_sample, [], 2);
-        figure(1); clf(1); subplot(2, 1, 1); plot(sample); hold on; plot(yl2); xlim([0, 1300]);
+        figure(1); clf(1); subplot(2, 1, 1); plot(sample); hold on; plot(yl2); xlim([0, 1300]); 
+        title('raw-data');
         subplot(2, 1, 2); plot(y_sample); title('Predicted Annot'); xlim([0, 1300]);
-        figure(2); subplot(3, 1, 1); plot(sample); subplot(3, 1, 2); plot(squeeze(y_prob(s, :, :)));
-        subplot(3, 1, 3); plot(squeeze(y_val(s, :, :)));
+        figure(2); subplot(4, 1, 1); plot(sample); title('Data');
+        subplot(4, 1, 2); plot(squeeze(y_prob(s, :, :))); title('y prob');
+        subplot(4, 1, 3); plot(squeeze(y_out(s, :, :))); title('y out');
+        subplot(4, 1, 4); plot(squeeze(y_val(s, :, :))); title('y true vals');
         xca = input('A1 Continue ? \n'); 
     end
 end

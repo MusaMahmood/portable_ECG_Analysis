@@ -14,7 +14,7 @@ from scipy.io import savemat
 from keras.layers import Dense, Dropout, Reshape
 from keras import optimizers, regularizers
 from keras.models import Sequential, load_model
-from keras.layers import Bidirectional, CuDNNLSTM
+from keras.layers import Bidirectional, CuDNNLSTM, LeakyReLU, PReLU
 from sklearn.model_selection import train_test_split
 from keras.layers.normalization import BatchNormalization
 
@@ -22,12 +22,13 @@ from keras.layers.normalization import BatchNormalization
 num_channels = 2
 num_classes = 5
 
-output_folder = 'classify_data_out/'
+output_folder = 'classify_data_out/n' + str(num_channels) + 'ch/'
 version_num = 0
 LSTM_UNITS = 32
-learn_rate = 0.001
-description = 'seq2seq_only_prescal_' + 'lstmU' + str(LSTM_UNITS) + 'v3'
-# description = 'cnn2l' + 'U' + str(1024) + 'v0'
+learn_rate = 0.01
+description = 'conv_seq2seq_prescal_' + 'prelu_lstmU' + str(LSTM_UNITS) + 'lr' + str(learn_rate) + 'v0'
+# description = 'seq2seq_only_prescal_' + 'lstmU' + str(LSTM_UNITS) + 'v3'
+# description = 'cnn2layer' + 'U' + str(1024) + 'v0'
 file_name = description
 seq_length = 1000
 if num_channels < 2:
@@ -39,24 +40,29 @@ else:
 y_shape = [1000, num_classes]
 
 # Import Data:
-x_tt, y_tt = tfs.load_data_v2('data/mit_db_time_labeled', x_shape, y_shape, 'relevant_data', 'Y')
+x_tt, y_tt = tfs.load_data_v2('data/mit_bih_tlabeled_2ch_fixed', x_shape, y_shape, 'relevant_data', 'Y')
 # x_tt, y_tt = tfs.load_data_v2('data/mit_bih_tlabeled_1ch', x_shape, y_shape, 'relevant_data', 'Y')
 x_train, x_test, y_train, y_test = train_test_split(x_tt, y_tt, train_size=0.66, random_state=1)
 
 
-def get_model_cnn():  # TODO: add LeakyRelu
+def get_model_cnn():
     k_model = Sequential()
     if num_channels < 2:
         k_model.add(Reshape((seq_length, num_channels, 1), input_shape=(input_shape, 1)))
     else:
         k_model.add(Reshape((seq_length, num_channels, 1), input_shape=input_shape))
-    k_model.add(k.layers.Conv2D(128, (2, 2), strides=(2, 1), padding='same', activation='relu'))
-    k_model.add(Dropout(0.2))
+    k_model.add(k.layers.Conv2D(128, (2, 2), strides=(2, 1), padding='same'))
     k_model.add(BatchNormalization())
-    k_model.add(k.layers.Conv2D(256, (8, 1), strides=(2, 1), padding='same', activation='relu'))
+    k_model.add(LeakyReLU(alpha=0.2))
     k_model.add(Dropout(0.2))
+    k_model.add(k.layers.Conv2D(256, (8, 1), strides=(2, 1), padding='same'))
     k_model.add(BatchNormalization())
-    k_model.add(Reshape(target_shape=(seq_length, 64)))
+    k_model.add(LeakyReLU(alpha=0.2))
+    k_model.add(Dropout(0.2))
+    if num_channels < 2:
+        k_model.add(Reshape(target_shape=(seq_length, 64)))
+    else:
+        k_model.add(Reshape(target_shape=(seq_length, num_channels * 64)))
     k_model.add(Dense(32, kernel_regularizer=regularizers.l2(l=0.01), input_shape=(seq_length, 1 * 128)))
     k_model.add(Dropout(0.2))
     k_model.add(BatchNormalization())
@@ -87,6 +93,7 @@ def get_model_seq2seq():
     print(k_model.summary())
     return k_model
 
+
 # Model:
 def get_model_conv_seq2seq():
     k_model = Sequential()
@@ -94,8 +101,10 @@ def get_model_conv_seq2seq():
         k_model.add(Reshape((seq_length, num_channels, 1), input_shape=(input_shape, 1)))
     else:
         k_model.add(Reshape((seq_length, num_channels, 1), input_shape=input_shape))
-    k_model.add(k.layers.Conv2D(128, (2, 2), strides=(2, 1), padding='same', activation='relu'))
-    k_model.add(k.layers.Conv2D(256, (8, 1), strides=(2, 1), padding='same', activation='relu'))
+    k_model.add(k.layers.Conv2D(128, (8, 8), strides=(2, 1), padding='same'))
+    k_model.add(PReLU())
+    k_model.add(k.layers.Conv2D(256, (8, 8), strides=(2, 1), padding='same'))
+    k_model.add(PReLU())
     if num_channels < 2:
         k_model.add(Reshape(target_shape=(seq_length, 64)))
     else:
@@ -115,15 +124,15 @@ def get_model_conv_seq2seq():
 
 
 # Train:
-batch_size = 512
+batch_size = 256
 epochs = 10
 
 tf_backend.set_session(tfs.get_session(0.9))
 with tf.device('/gpu:0'):
     start_time_ms = tfs.current_time_ms()
-    model = get_model_seq2seq()
-    # model = get_model_conv_seq2seq()
     # model = get_model_cnn()
+    # model = get_model_seq2seq()
+    model = get_model_conv_seq2seq()
     model.fit(x_train, y_train, batch_size=batch_size, epochs=epochs, verbose=1)  # train the model
     model.save('model.h5')
 
@@ -137,7 +146,6 @@ with tf.device('/gpu:0'):
     # TODO: Change this and keep the probability:
     yy_predicted = tfs.maximize_output_probabilities(yy_probabilities)  # Maximize probabilities of prediction.
 
-    # Print confusion matrix:
     # Evaluate other dataset:
     # yy_probabilities_f = model.predict(xx_flex)
     # yy_predicted_f = tfs.maximize_output_probabilities(yy_probabilities_f)  # Maximize probabilities of prediction.
