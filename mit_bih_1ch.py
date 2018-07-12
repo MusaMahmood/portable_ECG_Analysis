@@ -26,7 +26,7 @@ output_folder = 'classify_data_out/n' + str(num_channels) + 'ch/'
 version_num = 0
 LSTM_UNITS = 32
 learn_rate = 0.01
-description = 'conv_seq2seq_prescal_' + 'prelu_lstmU' + str(LSTM_UNITS) + 'lr' + str(learn_rate) + 'v0'
+description = 'flex.conv1d_seq2seq_prescal_' + 'prelu_lstmU' + str(LSTM_UNITS) + 'lr' + str(learn_rate) + 'v0'
 # description = 'seq2seq_only_prescal_' + 'lstmU' + str(LSTM_UNITS) + 'v3'
 # description = 'cnn2layer' + 'U' + str(1024) + 'v0'
 file_name = description
@@ -43,8 +43,8 @@ y_shape = [1000, num_classes]
 x_tt, y_tt = tfs.load_data_v2('data/mit_bih_tlabeled_2ch_fixed', [seq_length, 2], y_shape, 'relevant_data', 'Y')
 if num_channels < 2:
     x_tt = np.reshape(x_tt[:, :, 0], [-1, seq_length, 1])
-# x_tt, y_tt = tfs.load_data_v2('data/mit_bih_tlabeled_1ch', x_shape, y_shape, 'relevant_data', 'Y')
-x_train, x_test, y_train, y_test = train_test_split(x_tt, y_tt, train_size=0.66, random_state=1)
+xx_flex, y_flex = tfs.load_data_v2('data/flexEcg_1ch_invert', [seq_length, 1], [1], 'relevant_data', 'Y')
+x_train, x_test, y_train, y_test = train_test_split(x_tt, y_tt, train_size=0.75, random_state=1)  # 0.66
 
 
 def get_model_cnn():
@@ -125,8 +125,29 @@ def get_model_conv_seq2seq():
     return k_model
 
 
+def get_model_conv1d_seq2seq():
+    k_model = Sequential()
+    k_model.add(Reshape((seq_length, num_channels), input_shape=(input_shape, 1)))
+    k_model.add(k.layers.Conv1D(128, 8, strides=2, padding='same', activation='relu'))
+    k_model.add(k.layers.Conv1D(256, 8, strides=2, padding='same', activation='relu'))
+    k_model.add(k.layers.Conv1D(512, 8, strides=2, padding='same', activation='relu'))
+    k_model.add(Reshape(target_shape=(seq_length, 64)))
+    k_model.add(Dense(LSTM_UNITS, kernel_regularizer=regularizers.l2(l=0.01), input_shape=(seq_length, 1 * 128)))
+    k_model.add(Bidirectional(CuDNNLSTM(LSTM_UNITS, return_sequences=True)))
+    k_model.add(Dropout(0.2))
+    k_model.add(BatchNormalization())
+    k_model.add(Dense(64, activation='relu', kernel_regularizer=regularizers.l2(l=0.01)))
+    k_model.add(Dropout(0.2))
+    k_model.add(BatchNormalization())
+    k_model.add(Dense(num_classes, activation='softmax'))
+    adam = optimizers.adam(lr=learn_rate, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+    k_model.compile(loss='categorical_crossentropy', optimizer=adam, metrics=['accuracy'])
+    print(k_model.summary())
+    return k_model
+
+
 # Train:
-batch_size = 256
+batch_size = 512
 epochs = 20
 
 tf_backend.set_session(tfs.get_session(0.9))
@@ -134,7 +155,8 @@ with tf.device('/gpu:0'):
     start_time_ms = tfs.current_time_ms()
     # model = get_model_cnn()
     # model = get_model_seq2seq()
-    model = get_model_conv_seq2seq()
+    # model = get_model_conv_seq2seq()
+    model = get_model_conv1d_seq2seq()
     model.fit(x_train, y_train, batch_size=batch_size, epochs=epochs, verbose=1)  # train the model
     model.save('model.h5')
 
@@ -149,13 +171,15 @@ with tf.device('/gpu:0'):
     yy_predicted = tfs.maximize_output_probabilities(yy_probabilities)  # Maximize probabilities of prediction.
 
     # Evaluate other dataset:
-    # yy_probabilities_f = model.predict(xx_flex)
-    # yy_predicted_f = tfs.maximize_output_probabilities(yy_probabilities_f)  # Maximize probabilities of prediction.
+    yy_probabilities_f = model.predict(xx_flex)
+    yy_predicted_f = tfs.maximize_output_probabilities(yy_probabilities_f)  # Maximize probabilities of prediction.
 
     print('Elapsed Time (ms): ', tfs.current_time_ms() - start_time_ms)
     print('Elapsed Time (min): ', (tfs.current_time_ms() - start_time_ms) / 60000)
 
-    data_dict = {'x_val': x_test, 'y_val': y_test, 'y_out': yy_predicted, 'y_prob': yy_probabilities}
+    # data_dict = {'x_val': x_test, 'y_val': y_test, 'y_out': yy_predicted, 'y_prob': yy_probabilities}
+    data_dict = {'x_val': x_test, 'y_val': y_test, 'y_out': yy_predicted, 'y_prob': yy_probabilities, 'x_flex': xx_flex,
+                 'y_prob_flex': yy_probabilities_f, 'y_out_flex': yy_predicted_f}
     savemat(tfs.prep_dir(output_folder) + file_name + '.mat', mdict=data_dict)
 
 # Results:
