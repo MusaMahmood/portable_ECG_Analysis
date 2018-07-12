@@ -26,7 +26,7 @@ output_folder = 'classify_data_out/n' + str(num_channels) + 'ch/'
 version_num = 0
 LSTM_UNITS = 32
 learn_rate = 0.01
-description = 'flex.conv1d_seq2seq_prescal_' + 'prelu_lstmU' + str(LSTM_UNITS) + 'lr' + str(learn_rate) + 'v0'
+description = 'flex.conv1d_bilstm' + str(LSTM_UNITS) + 'lr' + str(learn_rate) + 'v1'
 # description = 'seq2seq_only_prescal_' + 'lstmU' + str(LSTM_UNITS) + 'v3'
 # description = 'cnn2layer' + 'U' + str(1024) + 'v0'
 file_name = description
@@ -40,6 +40,7 @@ else:
 y_shape = [1000, num_classes]
 
 # Import Data:
+# x_tt, y_tt = tfs.load_data_v2('data/dummy', [seq_length, 2], y_shape, 'relevant_data', 'Y')
 x_tt, y_tt = tfs.load_data_v2('data/mit_bih_tlabeled_2ch_fixed', [seq_length, 2], y_shape, 'relevant_data', 'Y')
 if num_channels < 2:
     x_tt = np.reshape(x_tt[:, :, 0], [-1, seq_length, 1])
@@ -146,6 +147,26 @@ def get_model_conv1d_seq2seq():
     return k_model
 
 
+def get_model_conv1d_bilstm():
+    k_model = Sequential()
+    k_model.add(Reshape((seq_length, num_channels), input_shape=(input_shape, 1)))
+    k_model.add(k.layers.Conv1D(128, 8, strides=2, padding='same', activation='relu'))
+    k_model.add(k.layers.Conv1D(256, 8, strides=2, padding='same', activation='relu'))
+    k_model.add(k.layers.Conv1D(512, 8, strides=2, padding='same', activation='relu'))
+    k_model.add(Reshape(target_shape=(seq_length, 64)))
+    k_model.add(Bidirectional(CuDNNLSTM(64, return_sequences=True)))
+    k_model.add(Dropout(0.2))
+    k_model.add(BatchNormalization())
+    k_model.add(Dense(64, activation='relu', kernel_regularizer=regularizers.l2(l=0.01)))
+    k_model.add(Dropout(0.2))
+    k_model.add(BatchNormalization())
+    k_model.add(Dense(num_classes, activation='softmax'))
+    adam = optimizers.adam(lr=learn_rate, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+    k_model.compile(loss='categorical_crossentropy', optimizer=adam, metrics=['accuracy'])
+    print(k_model.summary())
+    return k_model
+
+
 # Train:
 batch_size = 512
 epochs = 20
@@ -156,7 +177,8 @@ with tf.device('/gpu:0'):
     # model = get_model_cnn()
     # model = get_model_seq2seq()
     # model = get_model_conv_seq2seq()
-    model = get_model_conv1d_seq2seq()
+    # model = get_model_conv1d_seq2seq()  # Best one so far [8, 8, 8], [2, 2, 2]
+    model = get_model_conv1d_bilstm()
     model.fit(x_train, y_train, batch_size=batch_size, epochs=epochs, verbose=1)  # train the model
     model.save('model.h5')
 
