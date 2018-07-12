@@ -14,8 +14,8 @@ from scipy.io import savemat
 from keras.layers import Dense, Dropout, Reshape
 from keras import optimizers, regularizers
 from keras.models import Sequential, load_model
-from keras.layers import Bidirectional, CuDNNLSTM, LeakyReLU, PReLU
-from sklearn.model_selection import train_test_split
+from keras.layers import Bidirectional, CuDNNLSTM, LeakyReLU
+# from sklearn.model_selection import train_test_split
 from keras.layers.normalization import BatchNormalization
 
 # Setup:
@@ -26,7 +26,7 @@ output_folder = 'classify_data_out/n' + str(num_channels) + 'ch/'
 version_num = 0
 LSTM_UNITS = 32
 learn_rate = 0.01
-description = 'flex.conv1d_bilstm' + str(LSTM_UNITS) + 'lr' + str(learn_rate) + 'v1'
+description = 'flex.conv1d_seq2seq' + str(64) + 'lr' + str(learn_rate) + 'v1'
 # description = 'seq2seq_only_prescal_' + 'lstmU' + str(LSTM_UNITS) + 'v3'
 # description = 'cnn2layer' + 'U' + str(1024) + 'v0'
 file_name = description
@@ -41,11 +41,13 @@ y_shape = [1000, num_classes]
 
 # Import Data:
 # x_tt, y_tt = tfs.load_data_v2('data/dummy', [seq_length, 2], y_shape, 'relevant_data', 'Y')
-x_tt, y_tt = tfs.load_data_v2('data/mit_bih_tlabeled_2ch_fixed', [seq_length, 2], y_shape, 'relevant_data', 'Y')
+x_train, y_train = tfs.load_data_v2('data/mit_bih_tlabeled_2ch_fixed', [seq_length, 2], y_shape, 'relevant_data', 'Y')
+x_test, y_test = tfs.load_data_v2('data/mit_bih_tlabeled_2ch_fixed/test', [seq_length, 2], y_shape,
+                                  'relevant_data', 'Y')
 if num_channels < 2:
-    x_tt = np.reshape(x_tt[:, :, 0], [-1, seq_length, 1])
+    x_train = np.reshape(x_train[:, :, 0], [-1, seq_length, 1])
 xx_flex, y_flex = tfs.load_data_v2('data/flexEcg_1ch_invert', [seq_length, 1], [1], 'relevant_data', 'Y')
-x_train, x_test, y_train, y_test = train_test_split(x_tt, y_tt, train_size=0.75, random_state=1)  # 0.66
+# x_train, x_test, y_train, y_test = train_test_split(x_tt, y_tt, train_size=0.80, random_state=1)  # 0.66
 
 
 def get_model_cnn():
