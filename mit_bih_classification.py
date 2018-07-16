@@ -21,13 +21,13 @@ from keras.layers import Bidirectional, CuDNNLSTM, LeakyReLU
 # Setup:
 epochs = 40
 num_channels = 1
-num_classes = 6
+num_classes = 5
 model_dir = "model_exports"
 output_folder = 'classify_data_out/n' + str(num_channels) + 'ch/'
 version_num = 0
-LSTM_UNITS = 32
+LSTM_UNITS = 64
 learn_rate = 0.01
-description = 'flex_normal.fixed.conv1d_seq2seq_' + str(64) + 'lr' + str(learn_rate) + 'ep' + str(epochs) + '_v1'
+description = 'flex2_normal.fixed.conv1d_seq2seq_' + str(LSTM_UNITS) + 'lr' + str(learn_rate) + 'ep' + str(epochs) + '_v1'
 keras_model_name = description + '.h5'
 file_name = description
 seq_length = 2000
@@ -40,7 +40,8 @@ else:
 y_shape = [seq_length, num_classes]
 
 # Import Data:
-x_tt, y_tt = tfs.load_data_v2('data/6_class/mit_bih_tlabeled_w8s_fixed', [seq_length, 2], y_shape, 'relevant_data', 'Y')
+x_tt, y_tt = tfs.load_data_v2('data/extended_5_class/mit_bih_tlabeled_w8s_fixed', [seq_length, 2],
+                              y_shape, 'relevant_data', 'Y')
 if num_channels < 2:
     x_tt = np.reshape(x_tt[:, :, 0], [-1, seq_length, 1])
 xx_flex, y_flex = tfs.load_data_v2('data/flexEcg_8s_normal', [seq_length, 1], [1], 'relevant_data', 'Y')
@@ -53,10 +54,9 @@ def get_model_conv1d_bilstm():
     k_model.add(k.layers.Conv1D(128, 8, strides=2, padding='same', activation='relu'))
     k_model.add(k.layers.Conv1D(256, 8, strides=2, padding='same', activation='relu'))
     k_model.add(k.layers.Conv1D(512, 8, strides=2, padding='same', activation='relu'))
-    k_model.add(k.layers.Conv1D(1024, 5, strides=2, padding='same', activation='relu'))
 
     k_model.add(Reshape(target_shape=(seq_length, 64)))
-    k_model.add(Bidirectional(CuDNNLSTM(64, return_sequences=True)))
+    k_model.add(Bidirectional(CuDNNLSTM(LSTM_UNITS, return_sequences=True)))
     k_model.add(Dropout(0.2))
     k_model.add(BatchNormalization())
     k_model.add(Dense(64, activation='relu', kernel_regularizer=regularizers.l2(l=0.01)))
