@@ -19,6 +19,7 @@ from keras.backend import tensorflow_backend as tf_backend
 from keras.layers import Bidirectional, CuDNNLSTM, LeakyReLU
 
 # Setup:
+epochs = 40
 num_channels = 1
 num_classes = 5
 model_dir = "model_exports"
@@ -26,7 +27,7 @@ output_folder = 'classify_data_out/n' + str(num_channels) + 'ch/'
 version_num = 0
 LSTM_UNITS = 32
 learn_rate = 0.01
-description = 'flex_normal.fixed.conv1d_seq2seq_' + str(64) + 'lr' + str(learn_rate) + 'v1'
+description = 'flex_normal.fixed.conv1d_seq2seq_' + str(64) + 'lr' + str(learn_rate) + 'ep' + str(epochs) + '_v1'
 keras_model_name = description + '.h5'
 file_name = description
 seq_length = 2000
@@ -169,7 +170,6 @@ def get_model_conv1d_bilstm():
 
 # Train:
 batch_size = 256
-epochs = 20
 
 tf_backend.set_session(tfs.get_session(0.9))
 with tf.device('/gpu:0'):
