@@ -41,10 +41,10 @@ else:
 y_shape = [seq_length, num_classes]
 
 # Import Data: XDAT
-x_tt, y_tt = tfs.load_data_v2('data/flex', [seq_length, 1], [1], 'relevant_data', 'Y')  # Ignore Y.
+x_tt, y_tt = tfs.load_data_v2('data/flex_overlap', [seq_length, 1], [1], 'relevant_data', 'Y')  # Ignore Y.
 if num_channels < 2:
     x_tt = np.reshape(x_tt[:, :, 0], [-1, seq_length, 1])
-xx_flex, y_flex = tfs.load_data_v2('data/br', [seq_length, 1], [1], 'relevant_data', 'Y')
+xx_flex, y_flex = tfs.load_data_v2('data/br_overlap', [seq_length, 1], [1], 'relevant_data', 'Y')
 x_train, x_test, y_train, y_test = train_test_split(x_tt, xx_flex, train_size=0.75, random_state=1)  # 0.66
 
 

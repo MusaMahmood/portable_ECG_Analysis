@@ -39,3 +39,4 @@ rnn_annotation/qtdb/
 *.h5
 *.pdf
 graph/
+*.asv
