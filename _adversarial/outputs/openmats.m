@@ -1,19 +1,18 @@
-clr; load('ecg_conversion_64lr0.01ep200_v1.mat');
-% for f=1:3
-%     figure(f)
-%     for i=1:100
-%         subplot(10, 10, i);
-%         plot(x);
-%     end
-% end
+clr; load('ecg_cycle_gan_v1_lr0.0005_90.mat');
 
 for w = 1:size(x_val,1)
     figure(1);
-    subplot(3, 1, 1);
-    plot(x_val(w, :)); title('x-val-input');
-    subplot(3, 1, 2); 
-    plot(y_pred(w, :)); title('y-pred-output');
-    subplot(3, 1, 3);
-    plot(y_true(w, :)); title('y-troo');
+    subplot(3, 2, 1);
+    plot(x_val(w, :)); title('input-A');
+    subplot(3, 2, 2); 
+    plot(y_true(w, :)); title('input-B');
+    subplot(3, 2, 3);
+    plot(fake_B(w, :)); title('fake-B');
+    subplot(3, 2, 4);
+    plot(fake_A(w, :)); title('fake-A');
+    subplot(3, 2, 5);
+    plot(reconstr_A(w, :)); title('reconstr-A');
+    subplot(3, 2, 6);
+    plot(reconstr_B(w, :)); title('reconstr-B');
     x = input('Continue \n');
 end

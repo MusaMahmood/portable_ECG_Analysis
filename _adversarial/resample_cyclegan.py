@@ -3,35 +3,29 @@
 # TF 1.8.0
 
 # Imports:
-import os
 import datetime
 import numpy as np
 import tf_shared as tfs
-import tensorflow as tf
 
 from scipy.io import savemat
-from keras import regularizers
-from keras.models import Sequential, load_model, Model
-from keras.layers import Dense, Dropout, Reshape
+from keras.models import Model
+from keras.layers import Dropout
 from sklearn.model_selection import train_test_split
-from keras.layers.normalization import BatchNormalization
 from keras.utils.generic_utils import Progbar
 from keras.optimizers import Adam
-from keras.backend import tensorflow_backend as tf_backend
 from keras_contrib.layers.normalization import InstanceNormalization
-from keras.layers import Bidirectional, CuDNNLSTM, Conv1D, LeakyReLU, Flatten, Activation, Input, Concatenate
+from keras.layers import Conv1D, LeakyReLU, Input, Concatenate
 from keras.layers.convolutional import UpSampling1D
 
 # Setup:
-epochs = 200
+epochs = 101
 num_channels = 1
 num_classes = 1
 model_dir = "model_exports"
 output_folder = 'outputs/'
 version_num = 0
-LSTM_UNITS = 64
-learn_rate = 0.01
-description = 'ecg_conversion_' + str(LSTM_UNITS) + 'lr' + str(learn_rate) + 'ep' + str(epochs) + '_v1'
+learn_rate = 0.0005
+description = 'ecg_cycle_gan_v1_' + 'lr' + str(learn_rate)
 keras_model_name = description + '.h5'
 file_name = description
 seq_length = 2000
@@ -39,12 +33,12 @@ x_shape = [seq_length, 1]
 input_length = seq_length
 y_shape = [seq_length, num_classes]
 
-# Import Data: XDAT
+# Import Data:
 x_tt, y_tt = tfs.load_data_v2('data/flex_overlap', [seq_length, 1], [1], 'relevant_data', 'Y')  # Ignore Y.
 if num_channels < 2:
     x_tt = np.reshape(x_tt[:, :, 0], [-1, seq_length, 1])
-xx_flex, y_flex = tfs.load_data_v2('data/br_overlap', [seq_length, 1], [1], 'relevant_data', 'Y')
-x_train, x_test, y_train, y_test = train_test_split(x_tt, xx_flex, train_size=0.75, random_state=1)  # 0.66
+xx_br, y_br = tfs.load_data_v2('data/br_overlap', [seq_length, 1], [1], 'relevant_data', 'Y')
+x_train, x_test, y_train, y_test = train_test_split(x_tt, xx_br, train_size=0.75, random_state=1)  # 0.66
 
 
 def build_generator():
@@ -99,7 +93,7 @@ def build_discriminator():
 
 
 # Train:
-batch_size = 32
+batch_size = 128
 
 # tf_backend.set_session(tfs.get_session(0.9))
 # with tf.device('/gpu:0'):
@@ -113,12 +107,17 @@ optimizer = Adam(learn_rate, beta_1=0.50)
 # Build and compile the discriminators
 d_A = build_discriminator()
 d_B = build_discriminator()
+print('Discriminator: ')
+print(d_A.summary())
+
 d_A.compile(loss='mse', optimizer=optimizer, metrics=['accuracy'])
 d_B.compile(loss='mse', optimizer=optimizer, metrics=['accuracy'])
 
 # Build and compile the generators
 g_AB = build_generator()
 g_BA = build_generator()
+print('Generator: ')
+print(g_AB.summary())
 
 input_A = Input(shape=(input_length, 1))
 input_B = Input(shape=(input_length, 1))
@@ -209,6 +208,8 @@ for epoch in range(epochs):
         # gen_imgs = generator.predict(x_train)
         md = {'x_val': x_train, 'y_true': y_train, 'fake_A': fake_A, 'fake_B': fake_B, 'reconstr_A': reconstr_A,
               'reconstr_B': reconstr_B}
-        savemat(tfs.prep_dir(output_folder) + "ecg_test_%d.mat" % epoch, mdict=md)
+        savemat(tfs.prep_dir(output_folder) + description + "_%d.mat" % epoch, mdict=md)
+
+# TODO: Evaluate Test Samples
 
 # See other resample.py
