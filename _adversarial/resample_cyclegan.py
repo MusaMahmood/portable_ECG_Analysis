@@ -3,31 +3,31 @@
 # TF 1.8.0
 
 # Imports:
+import os
 import datetime
 import numpy as np
 import tf_shared as tfs
 
 from scipy.io import savemat
-from keras.models import Model
+from keras.models import Model, load_model
 from keras.layers import Dropout
 from sklearn.model_selection import train_test_split
 from keras.utils.generic_utils import Progbar
 from keras.optimizers import Adam
-from keras_contrib.layers.normalization import InstanceNormalization
+from keras_contrib.layers.normalization import InstanceNormalization  # https://arxiv.org/abs/1701.02096;
 from keras.layers import Conv1D, LeakyReLU, Input, Concatenate
 from keras.layers.convolutional import UpSampling1D
 
 # Setup:
-epochs = 101
+epochs = 301
 num_channels = 1
 num_classes = 1
-model_dir = "model_exports"
-output_folder = 'outputs/'
+label = 'ecg_cycle_gan_v1_r3'
+model_dir = "model_exports/" + label + '/'
+output_folder = 'outputs/' + label + '/'
 version_num = 0
 learn_rate = 0.0005
-description = 'ecg_cycle_gan_v1_' + 'lr' + str(learn_rate)
-keras_model_name = description + '.h5'
-file_name = description
+description = label + '_' + 'lr' + str(learn_rate)
 seq_length = 2000
 x_shape = [seq_length, 1]
 input_length = seq_length
@@ -143,7 +143,7 @@ valid_B = d_B(fake_B)
 
 combined_model = Model(inputs=[input_A, input_B],
                        outputs=[valid_A, valid_B, reconstr_A, reconstr_B, input_A_id, input_B_id])
-
+print(combined_model.summary())
 combined_model.compile(loss=['mse', 'mse', 'mae', 'mae', 'mae', 'mae'],
                        loss_weights=[1, 1, lambda_cycle, lambda_cycle, lambda_id, lambda_id], optimizer=optimizer)
 
@@ -211,5 +211,34 @@ for epoch in range(epochs):
         savemat(tfs.prep_dir(output_folder) + description + "_%d.mat" % epoch, mdict=md)
 
 # TODO: Evaluate Test Samples
+
+# Save and restore models:
+keras_combined_model_location = tfs.prep_dir("model_exports/") + description + 'combined_model.h5'
+keras_d_A_location = tfs.prep_dir("model_exports/") + description + 'd_A.h5'
+keras_d_B_location = tfs.prep_dir("model_exports/") + description + 'd_B.h5'
+keras_g_BA_location = tfs.prep_dir("model_exports/") + description + 'g_BA.h5'
+keras_g_AB_location = tfs.prep_dir("model_exports/") + description + 'g_AB.h5'
+combined_model.save(keras_combined_model_location)
+g_AB.save(keras_g_AB_location)
+g_BA.save(keras_g_BA_location)
+d_A.save(keras_d_A_location)
+d_B.save(keras_d_B_location)
+
+if os.path.isfile(keras_combined_model_location):
+    d_A = load_model(keras_d_A_location)
+    d_B = load_model(keras_d_B_location)
+    g_AB = load_model(keras_g_AB_location)
+    g_BA = load_model(keras_g_BA_location)
+    combined_model = load_model(keras_combined_model_location)
+
+fake_B = g_AB.predict(x_test)
+fake_A = g_BA.predict(y_test)
+# translate back to original domain:
+reconstr_A = g_BA.predict(fake_B)
+reconstr_B = g_AB.predict(fake_A)
+
+md = {'x_val': x_test, 'y_true': y_test, 'fake_A': fake_A, 'fake_B': fake_B, 'reconstr_A': reconstr_A,
+      'reconstr_B': reconstr_B}
+savemat(tfs.prep_dir(output_folder) + 'test_' + description + ".mat", mdict=md)
 
 # See other resample.py

@@ -1,18 +1,22 @@
-clr; load('ecg_cycle_gan_v1_lr0.0005_90.mat');
-
+clr;
+load('ecg_cycle_gan_v1_r2\ecg_cycle_gan_v1_r2_lr0.0005_250.mat');
+% load('ecg_cycle_gan_v1_r3\test_ecg_cycle_gan_v1_r3_lr0.0005.mat');
 for w = 1:size(x_val,1)
     figure(1);
     subplot(3, 2, 1);
-    plot(x_val(w, :)); title('input-A');
+    plot(x_val(w, :)); title('input-A'); ylim([0, 1])
     subplot(3, 2, 2); 
-    plot(y_true(w, :)); title('input-B');
+    plot(y_true(w, :)); title('input-B'); ylim([0, 1])
     subplot(3, 2, 3);
-    plot(fake_B(w, :)); title('fake-B');
+    plot(fake_B(w, :)); title('fake-B'); ylim([0, 1])
     subplot(3, 2, 4);
-    plot(fake_A(w, :)); title('fake-A');
+    plot(fake_A(w, :)); title('fake-A'); ylim([0, 1])
     subplot(3, 2, 5);
-    plot(reconstr_A(w, :)); title('reconstr-A');
+    plot(reconstr_A(w, :)); title('reconstr-A'); ylim([0, 1])
     subplot(3, 2, 6);
-    plot(reconstr_B(w, :)); title('reconstr-B');
+    plot(reconstr_B(w, :)); title('reconstr-B'); ylim([0, 1])
     x = input('Continue \n');
 end
+
+% Need to explain everything in terms of reducing loss. Read original
+% 1703.10593 ArXiv paper. 
