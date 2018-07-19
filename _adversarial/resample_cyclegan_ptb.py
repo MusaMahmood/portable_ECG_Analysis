@@ -8,9 +8,9 @@ import datetime
 import numpy as np
 import tf_shared as tfs
 
-from scipy.io import savemat
 from keras.layers import Dropout
 from keras.optimizers import Adam
+from scipy.io import savemat, loadmat
 from keras.models import Model, load_model
 from keras.utils.generic_utils import Progbar
 from keras.layers.convolutional import UpSampling1D
@@ -30,14 +30,14 @@ model_dir = "model_exports/" + label + '/'
 output_folder = 'outputs/' + label + '/'
 description = label
 seq_length = 2000
-x_shape = [seq_length, 1]
 input_length = seq_length
+x_shape = [seq_length, 1]
 y_shape = [seq_length, num_classes]
 
-# x_lead_v3, y_v3 = tfs.load_data_v2('data/ptb_ecg_lead_convert/lead_v3', [seq_length, 1], [1], 'relevant_data', 'Y')
-x_lead_v3, y_v3 = tfs.load_data_v2('data/ptb_ecg_lead_convert/dummy_v3', [seq_length, 1], [1], 'relevant_data', 'Y')
-# x_lead_ii, y_ii = tfs.load_data_v2('data/ptb_ecg_lead_convert/lead_ii', [seq_length, 1], [1], 'relevant_data', 'Y')
-x_lead_ii, y_ii = tfs.load_data_v2('data/ptb_ecg_lead_convert/dummy_ii', [seq_length, 1], [1], 'relevant_data', 'Y')
+x_lead_v3, y_v3 = tfs.load_data_v2('data/ptb_ecg_lead_convert/lead_v3', [seq_length, 1], [1], 'relevant_data', 'Y')
+# x_lead_v3, y_v3 = tfs.load_data_v2('data/ptb_ecg_lead_convert/dummy_v3', [seq_length, 1], [1], 'relevant_data', 'Y')
+x_lead_ii, y_ii = tfs.load_data_v2('data/ptb_ecg_lead_convert/lead_ii', [seq_length, 1], [1], 'relevant_data', 'Y')
+# x_lead_ii, y_ii = tfs.load_data_v2('data/ptb_ecg_lead_convert/dummy_ii', [seq_length, 1], [1], 'relevant_data', 'Y')
 x_train, x_test, y_train, y_test = train_test_split(x_lead_v3, x_lead_ii, train_size=0.75, random_state=1)
 
 
@@ -93,6 +93,9 @@ def build_discriminator():
 
 
 # Restore Model if Present:
+keras_training_file = tfs.prep_dir(model_dir) + description + 'training.mat'
+keras_training_epochs_key = 'training_epochs'
+keras_training_batch_size_key = 'training_batch_size'
 keras_combined_model_location = tfs.prep_dir(model_dir) + description + 'combined_model.h5'
 keras_d_A_location = tfs.prep_dir(model_dir) + description + 'd_A.h5'
 keras_d_B_location = tfs.prep_dir(model_dir) + description + 'd_B.h5'
@@ -160,14 +163,26 @@ else:
     combined_model.compile(loss=['mse', 'mse', 'mae', 'mae', 'mae', 'mae'],
                            loss_weights=[1, 1, lambda_cycle, lambda_cycle, lambda_id, lambda_id], optimizer=optimizer)
 
+# If mat file doesn't exist, make one and set to zero:
+if os.path.isfile(keras_training_file):
+    prev_training_epochs = loadmat(keras_training_file).get(keras_training_epochs_key)
+    prev_batch_size = loadmat(keras_training_file).get(keras_training_batch_size_key)
+else:
+    prev_training_epochs = 0
+    prev_batch_size = 0
+    savemat(keras_training_file, mdict={keras_training_epochs_key: 0, keras_training_batch_size_key: batch_size})
+
 # Train:
 if TRAIN:
+    print('This model has been trained to ', prev_training_epochs, 'epochs, with batch size:', prev_batch_size)
+    print('Starting Training! - batch_size:', batch_size, ' epochs: ', epochs)
     # Adversarial loss ground truths
     valid = np.ones((batch_size,) + (125, 1))
     fake = np.zeros((batch_size,) + (125, 1))
     # Training Routine:
     start_time = datetime.datetime.now()
-    for epoch in range(epochs):
+    last_epoch_update = 0
+    for epoch in range(epochs + 1):
         print('Epoch {} of {}'.format(epoch, epochs))
         number_batches = int(x_train.shape[0] / batch_size) - 1
         progress_bar = Progbar(target=number_batches)
@@ -210,26 +225,32 @@ if TRAIN:
                    np.mean(g_loss[3:5]),
                    np.mean(g_loss[5:6]),
                    elapsed_time))
-        if epoch % 10 == 0:
-            # translate inputs to other domain:
-            # TODO: Save Model & Evaluate Test Samples
+        if epoch % 10 == 0 and epoch != 0:
+            # Translate inputs to other domain:
             fake_B = g_AB.predict(x_train)
             fake_A = g_BA.predict(y_train)
             # translate back to original domain:
             reconstr_A = g_BA.predict(fake_B)
             reconstr_B = g_AB.predict(fake_A)
 
-            # gen_imgs = generator.predict(x_train)
-            mdict = {'x_val': x_train, 'y_true': y_train, 'fake_A': fake_A, 'fake_B': fake_B, 'reconstr_A': reconstr_A,
-                     'reconstr_B': reconstr_B}
-            savemat(tfs.prep_dir(output_folder) + description + "_%d.mat" % epoch, mdict=mdict)
-        if epoch % 50 == 0:
-            # save Model
+            # Save Model & Update Stats
             combined_model.save(keras_combined_model_location)
             g_AB.save(keras_g_AB_location)
             g_BA.save(keras_g_BA_location)
             d_A.save(keras_d_A_location)
             d_B.save(keras_d_B_location)
+            # Update Number of Epochs saved
+            prev_training_epochs = loadmat(keras_training_file).get(keras_training_epochs_key)
+            savemat(keras_training_file, mdict={keras_training_epochs_key: prev_training_epochs + 10,
+                                                keras_training_batch_size_key: batch_size})
+            # gen_imgs = generator.predict(x_train)
+            mdict = {'x_val': x_train, 'y_true': y_train, 'fake_A': fake_A, 'fake_B': fake_B, 'reconstr_A': reconstr_A,
+                     'reconstr_B': reconstr_B}
+            total_epochs = prev_training_epochs + 10
+            savemat(tfs.prep_dir(output_folder) + description + "_%d.mat" % total_epochs, mdict=mdict)
+            last_epoch_update = epoch
+
+
 
     # Save Models After Training Completed
     combined_model.save(keras_combined_model_location)
@@ -237,7 +258,12 @@ if TRAIN:
     g_BA.save(keras_g_BA_location)
     d_A.save(keras_d_A_location)
     d_B.save(keras_d_B_location)
+    update = epochs - last_epoch_update
+    prev_training_epochs = loadmat(keras_training_file).get(keras_training_epochs_key)
+    savemat(keras_training_file, mdict={keras_training_epochs_key: prev_training_epochs + update,
+                                        keras_training_batch_size_key: batch_size})
 
+print('Evaluating & Saving Test Set:')
 # Generate Fake Images:
 fake_B = g_AB.predict(x_test)
 fake_A = g_BA.predict(y_test)
@@ -249,3 +275,4 @@ reconstr_B = g_AB.predict(fake_A)
 mdict = {'x_val': x_test, 'y_true': y_test, 'fake_A': fake_A, 'fake_B': fake_B, 'reconstr_A': reconstr_A,
          'reconstr_B': reconstr_B}
 savemat(tfs.prep_dir(output_folder) + 'test_' + description + ".mat", mdict=mdict)
+print('Test Data Saved: ', output_folder + 'test_' + description + ".mat")
