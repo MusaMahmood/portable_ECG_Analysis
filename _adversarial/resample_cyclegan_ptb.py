@@ -271,8 +271,8 @@ fake_A = g_BA.predict(y_test)
 # Translate back to original domain:
 reconstr_A = g_BA.predict(fake_B)
 reconstr_B = g_AB.predict(fake_A)
-
+total_epochs = loadmat(keras_training_file).get(keras_training_epochs_key)
 mdict = {'x_val': x_test, 'y_true': y_test, 'fake_A': fake_A, 'fake_B': fake_B, 'reconstr_A': reconstr_A,
          'reconstr_B': reconstr_B}
-savemat(tfs.prep_dir(output_folder) + 'test_' + description + ".mat", mdict=mdict)
+savemat(tfs.prep_dir(output_folder) + 'test_' + description + '_' + str(total_epochs) + 'epochs.mat', mdict=mdict)
 print('Test Data Saved: ', output_folder + 'test_' + description + ".mat")
