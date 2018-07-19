@@ -6,7 +6,7 @@ clr;
 load('n1ch\flex_normal.fixed.conv1d_seq2seq_64lr0.01ep40_v1.mat');
 % %{
 CH1_ONLY = size(x_val, 3) - 1; 
-PLOT = 0
+PLOT = 1
 score = 0; miss = 0;
 acc = zeros(size(x_val,1), 1);
 
@@ -27,11 +27,11 @@ if exist('x_val', 'var')
         else
             miss = miss + 1;
             acc(s) = 0;
-            PLOT=1;
+%             PLOT=1;
         end
         clear b yy yt
         if PLOT
-            PLOT = 0;
+%             PLOT = 0;
             sample =squeeze(x_val(s, :, :));
             [~, yl2] = max(y_sample, [], 2);
             figure(2); subplot(4, 1, 1); plot(sample); title('Data');

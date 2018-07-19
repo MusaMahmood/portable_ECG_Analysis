@@ -19,29 +19,25 @@ from keras.layers import Conv1D, LeakyReLU, Input, Concatenate
 from keras_contrib.layers.normalization import InstanceNormalization  # https://arxiv.org/abs/1701.02096;
 
 # Setup:
-epochs = 301
+epochs = 101
 num_channels = 1
 num_classes = 1
-label = 'ecg_cycle_gan_v1_r3'
+learn_rate = 0.0002
+label = 'ptb_ecg_cycle_gan_v1_lr' + str(learn_rate) + '_r4'
 model_dir = "model_exports/" + label + '/'
 output_folder = 'outputs/' + label + '/'
 version_num = 0
-learn_rate = 0.0005
-description = label + '_' + 'lr' + str(learn_rate)
+description = label
 seq_length = 2000
 x_shape = [seq_length, 1]
 input_length = seq_length
 y_shape = [seq_length, num_classes]
 
-# Import Data:
-x_tt, y_tt = tfs.load_data_v2('data/flex_overlap', [seq_length, 1], [1], 'relevant_data', 'Y')  # Ignore Y.
-x_lead_v3 = tfs.load_data_v2('data/ptb_ecg_lead_convert/lead_v3', [seq_length, 1], [1], 'relevant_data', 'Y')
-x_lead_ii = tfs.load_data_v2('data/ptb_ecg_lead_convert/lead_ii', [seq_length, 1], [1], 'relevant_data', 'Y')
-
-if num_channels < 2:
-    x_tt = np.reshape(x_tt[:, :, 0], [-1, seq_length, 1])
-xx_br, y_br = tfs.load_data_v2('data/br_overlap', [seq_length, 1], [1], 'relevant_data', 'Y')
-x_train, x_test, y_train, y_test = train_test_split(x_tt, xx_br, train_size=0.75, random_state=1)  # 0.66
+# x_lead_v3, y_v3 = tfs.load_data_v2('data/ptb_ecg_lead_convert/lead_v3', [seq_length, 1], [1], 'relevant_data', 'Y')
+x_lead_v3, y_v3 = tfs.load_data_v2('data/ptb_ecg_lead_convert/dummy_v3', [seq_length, 1], [1], 'relevant_data', 'Y')
+# x_lead_ii, y_ii = tfs.load_data_v2('data/ptb_ecg_lead_convert/lead_ii', [seq_length, 1], [1], 'relevant_data', 'Y')
+x_lead_ii, y_ii = tfs.load_data_v2('data/ptb_ecg_lead_convert/dummy_ii', [seq_length, 1], [1], 'relevant_data', 'Y')
+x_train, x_test, y_train, y_test = train_test_split(x_lead_v3, x_lead_ii, train_size=0.75, random_state=1)  # 0.66
 
 
 def build_generator():
@@ -155,6 +151,8 @@ start_time = datetime.datetime.now()
 valid = np.ones((batch_size,) + (125, 1))
 fake = np.zeros((batch_size,) + (125, 1))
 
+# TODO: Restore saved model of same name if present:
+
 for epoch in range(epochs):
     print('Epoch {} of {}'.format(epoch + 1, epochs))
     number_batches = int(x_train.shape[0] / batch_size) - 1
@@ -210,6 +208,7 @@ for epoch in range(epochs):
         md = {'x_val': x_train, 'y_true': y_train, 'fake_A': fake_A, 'fake_B': fake_B, 'reconstr_A': reconstr_A,
               'reconstr_B': reconstr_B}
         savemat(tfs.prep_dir(output_folder) + description + "_%d.mat" % epoch, mdict=md)
+        # TODO: Save Model & Evaluate Test Samples
 
 # TODO: Evaluate Test Samples
 

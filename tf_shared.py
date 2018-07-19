@@ -23,6 +23,13 @@ from sklearn import metrics as skmet
 # input_shape = np.shape(inputs)
 # tf.nn.conv2d(inputs, latent_space, strides=[1,1,1,1], padding='SAME')
 #     return 0
+def keras_load_cycle_gan():
+    exit(0)
+
+
+def k_save_cycle_gan():
+    exit(1)
+
 
 def get_session(gpu_fraction=0.9):
     # allocate % of gpu memory.
