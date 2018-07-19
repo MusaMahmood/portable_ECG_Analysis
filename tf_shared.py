@@ -23,7 +23,7 @@ from sklearn import metrics as skmet
 # input_shape = np.shape(inputs)
 # tf.nn.conv2d(inputs, latent_space, strides=[1,1,1,1], padding='SAME')
 #     return 0
-def keras_load_cycle_gan():
+def keras_load_cycle_gan(description):
     exit(0)
 
 
