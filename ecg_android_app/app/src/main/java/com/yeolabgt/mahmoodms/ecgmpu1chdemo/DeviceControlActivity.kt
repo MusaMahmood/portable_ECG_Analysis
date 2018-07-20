@@ -15,6 +15,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.os.Bundle
+import android.os.Environment
 import android.os.Handler
 import android.support.v4.app.NavUtils
 import android.support.v4.content.FileProvider
@@ -29,6 +30,9 @@ import android.widget.ToggleButton
 
 import com.androidplot.util.Redrawer
 import com.yeolabgt.mahmoodms.actblelibrary.ActBle
+import kotlinx.android.synthetic.main.activity_device_control.*
+import org.tensorflow.contrib.android.TensorFlowInferenceInterface
+import java.io.File
 
 import java.io.IOException
 import java.text.SimpleDateFormat
@@ -48,7 +52,7 @@ class DeviceControlActivity : Activity(), ActBle.ActBleListener {
     private var mGraphAdapterMotionAY: GraphAdapter? = null
     private var mGraphAdapterMotionAZ: GraphAdapter? = null
     private var mTimeDomainPlotAdapterCh1: XYPlotAdapter? = null
-//    private var mTimeDomainPlotAdapterCh2: XYPlotAdapter? = null
+    //    private var mTimeDomainPlotAdapterCh2: XYPlotAdapter? = null
     private var mMotionDataPlotAdapter: XYPlotAdapter? = null
     //Device Information
     private var mBleInitializedBoolean = false
@@ -76,10 +80,66 @@ class DeviceControlActivity : Activity(), ActBle.ActBleListener {
     //Data Variables:
     private val batteryWarning = 20//
     private var dataRate: Double = 0.toDouble()
-    //Play Sound:
+    // Tensorflow Implementation:
+    private val INPUT_DATA_FEED_KEY = "input_3_2"
+    private val OUTPUT_DATA_FEED_KEY = "conv1d_18_2/Tanh"
+
+    private var mTFRunModel = false
+    private var mTensorFlowInferenceInterface: TensorFlowInferenceInterface? = null
+    private var mOutputScoresNames: Array<String>? = null
+    private var mTensorflowInputXDim = 1L
+    private var mTensorflowInputYDim = 1L
+    private var mTensorflowOutputXDim = 1L
+    private var mTensorflowOutputYDim = 1L
+    private var mNumberOfClassifierCalls = 0
+
 
     private val mTimeStamp: String
         get() = SimpleDateFormat("yyyy.MM.dd_HH.mm.ss", Locale.US).format(Date())
+
+    private val mClassifyThread = Runnable {
+        if (mTFRunModel) {
+            val outputProbabilities = FloatArray(2000)
+            val ecgRawDoubles = mCh1!!.classificationBuffer
+            // Filter, level and return as floats:
+            val inputArray = jecgFiltRescale(ecgRawDoubles)  //Float Array
+            Log.e(TAG, "OrigArray: " + Arrays.toString(inputArray))
+            mTensorFlowInferenceInterface!!.feed(INPUT_DATA_FEED_KEY, inputArray, 1L, mTensorflowInputXDim, mTensorflowInputYDim)
+            mTensorFlowInferenceInterface!!.run(mOutputScoresNames)
+            mTensorFlowInferenceInterface!!.fetch(OUTPUT_DATA_FEED_KEY, outputProbabilities)
+            // Save outputProbabilities
+            Log.e(TAG, "OutputArray: " + Arrays.toString(outputProbabilities))
+            // Save data:
+            mTensorflowOutputsSaveFile?.writeToDiskFloat(inputArray, outputProbabilities)
+        }
+    }
+
+    private fun enableTensorflowModel() {
+        val generativeModelBinary = "opt_ptb_ecg_cycle_gan_v1_lr0.0002_r0g_AB.pb"
+        val generativeModelPath = Environment.getExternalStorageDirectory().absolutePath +
+                "/Download/tensorflow_assets/ecg_classify/" + generativeModelBinary
+        Log.e(TAG, "Tensorflow Generative Model Path: $generativeModelPath")
+        mTensorflowInputXDim = 2000
+        mTensorflowInputYDim = 1
+        mTensorflowOutputXDim = mTensorflowInputXDim
+        mTensorflowOutputYDim = mTensorflowInputYDim
+        when {
+            File(generativeModelPath).exists() -> {
+                mTensorFlowInferenceInterface = TensorFlowInferenceInterface(assets, generativeModelPath)
+                // Reset counter:
+                mNumberOfClassifierCalls = 1
+                mTFRunModel = true
+                Log.i(TAG, "Tensorflow - Custom Generative Model Loaded: $generativeModelBinary")
+            }
+            else -> {
+                mTFRunModel = false
+                Toast.makeText(applicationContext, "No TF Model Found!", Toast.LENGTH_LONG).show()
+            }
+        }
+        if (mTFRunModel) {
+            Toast.makeText(applicationContext, "Tensorflow Generative Model Loaded!", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     public override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -123,6 +183,17 @@ class DeviceControlActivity : Activity(), ActBle.ActBleListener {
             mGraphAdapterCh2!!.plotData = b
         }
         mExportButton.setOnClickListener { exportData() }
+        // Tensorflow Switch
+        tensorflowClassificationSwitch.setOnCheckedChangeListener { _, b ->
+            if (b) {
+                enableTensorflowModel()
+            } else {
+                mTFRunModel = false
+                mNumberOfClassifierCalls = 1
+                Toast.makeText(applicationContext, "Tensorflow Disabled", Toast.LENGTH_SHORT).show()
+            }
+        }
+        mOutputScoresNames = arrayOf(OUTPUT_DATA_FEED_KEY)
     }
 
     private fun exportData() {
@@ -136,10 +207,12 @@ class DeviceControlActivity : Activity(), ActBle.ActBleListener {
         val context = applicationContext
         val uii = FileProvider.getUriForFile(context, context.packageName + ".provider", mPrimarySaveDataFile!!.file)
         files.add(uii)
-        if(mSaveFileMPU!=null) {
+        if (mSaveFileMPU != null) {
             val uii2 = FileProvider.getUriForFile(context, context.packageName + ".provider", mSaveFileMPU!!.file)
             files.add(uii2)
         }
+        val uii3 = FileProvider.getUriForFile(context, context.packageName + ".provider", mTensorflowOutputsSaveFile!!.file)
+        files.add(uii3)
         val exportData = Intent(Intent.ACTION_SEND_MULTIPLE)
         exportData.putExtra(Intent.EXTRA_SUBJECT, "ECG Sensor Data Export Details")
         exportData.putParcelableArrayListExtra(Intent.EXTRA_STREAM, files)
@@ -151,6 +224,7 @@ class DeviceControlActivity : Activity(), ActBle.ActBleListener {
     private fun terminateDataFileWriter() {
         mPrimarySaveDataFile?.terminateDataFileWriter()
         mSaveFileMPU?.terminateDataFileWriter()
+        mTensorflowOutputsSaveFile?.terminateDataFileWriter()
     }
 
     public override fun onResume() {
@@ -229,6 +303,15 @@ class DeviceControlActivity : Activity(), ActBle.ActBleListener {
         } else if (!mPrimarySaveDataFile!!.initialized) {
             Log.e(TAG, "New Filename: " + fileNameTimeStamped)
             mPrimarySaveDataFile?.createNewFile(directory, fileNameTimeStamped)
+        }
+
+        // Tensorflow Stuff:
+        val directory2 = "/ECG_TF_data_out"
+        val fileNameTimeStamped2 = "ECG_TF_data_" + mTimeStamp + "_" + mSampleRate.toString() + "Hz"
+        if (mTensorflowOutputsSaveFile == null) {
+            Log.e(TAG, "fileTimeStamp: $fileNameTimeStamped2")
+            mTensorflowOutputsSaveFile = SaveDataFile(directory2, fileNameTimeStamped2, 24, 1.toDouble()/ mSampleRate,
+                    saveTimestamps = false, includeClass = false)
         }
     }
 
@@ -479,8 +562,8 @@ class DeviceControlActivity : Activity(), ActBle.ActBleListener {
 
     override fun onCharacteristicChanged(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
         if (mCh1 == null || mCh2 == null) {
-            mCh1 = DataChannel(false, mMSBFirst, 4 * mSampleRate)
-            mCh2 = DataChannel(false, mMSBFirst, 4 * mSampleRate)
+            mCh1 = DataChannel(false, mMSBFirst, 8 * mSampleRate)
+            mCh2 = DataChannel(false, mMSBFirst, 8 * mSampleRate)
         }
 
         if (AppConstant.CHAR_BATTERY_LEVEL == characteristic.uuid) {
@@ -488,14 +571,23 @@ class DeviceControlActivity : Activity(), ActBle.ActBleListener {
             updateBatteryStatus(batteryLevel)
         }
 
-        if (AppConstant.CHAR_EEG_CH1_SIGNAL == characteristic.uuid ||
-                AppConstant.CHAR_EEG_CH2_SIGNAL == characteristic.uuid) {
+        if (AppConstant.CHAR_EEG_CH1_SIGNAL == characteristic.uuid) {
             if (!mCh1!!.chEnabled) mCh1!!.chEnabled = true
             val mNewEEGdataBytes = characteristic.value
             getDataRateBytes(mNewEEGdataBytes.size)
             mCh1!!.handleNewData(mNewEEGdataBytes)
             addToGraphBuffer(mCh1!!, mGraphAdapterCh1)
             mPrimarySaveDataFile!!.writeToDisk(mCh1!!.characteristicDataPacketBytes)
+            // For every 2000 dp recieved, run generative model.
+            if (mCh1!!.totalDataPointsReceived % 2004 == 0 && mCh1!!.totalDataPointsReceived != 0) {
+                Log.e(TAG, "Total datapoints: ${mCh1!!.totalDataPointsReceived}")
+                val classifyTaskThread = Thread(mClassifyThread)
+                classifyTaskThread.start()
+            }
+        }
+
+        if (AppConstant.CHAR_EEG_CH2_SIGNAL == characteristic.uuid) {
+            if (mCh2!!.chEnabled) mCh2!!.chEnabled = true
         }
 
         if (AppConstant.CHAR_MPU_COMBINED == characteristic.uuid) {
@@ -512,16 +604,16 @@ class DeviceControlActivity : Activity(), ActBle.ActBleListener {
     }
 
     private fun addToGraphBuffer(dataChannel: DataChannel, graphAdapter: GraphAdapter?) {
-        if (mFilterData && dataChannel.totalDataPointsReceived > 4* mSampleRate/* && mSampleRate < 1000*/) {
-            val bufferLength = 4 * 250
+        if (mFilterData && dataChannel.totalDataPointsReceived > 4 * mSampleRate/* && mSampleRate < 1000*/) {
+            val graphBufferLength = 4 * 250
             //TODO: Downsample, then filter, then plot:
             val filterArray = jdownSample(dataChannel.classificationBuffer, mSampleRate)
-            graphAdapter?.setSeriesHistoryDataPoints(bufferLength)
+            graphAdapter?.setSeriesHistoryDataPoints(graphBufferLength)
             val filteredData = jecgBandStopFilter(filterArray)
             graphAdapter!!.clearPlot()
 
             for (i in filteredData.indices) { // gA.addDataPointTimeDomain(y,x)
-                graphAdapter.addDataPointTimeDomainAlt(filteredData[i], dataChannel.totalDataPointsReceived - (bufferLength - 1) + i)
+                graphAdapter.addDataPointTimeDomainAlt(filteredData[i], dataChannel.totalDataPointsReceived - (graphBufferLength - 1) + i)
             }
         } else {
             if (dataChannel.dataBuffer != null) {
@@ -549,7 +641,7 @@ class DeviceControlActivity : Activity(), ActBle.ActBleListener {
     }
 
     private fun addToGraphBufferMPU(dataChannel: DataChannel) {
-        if (dataChannel.dataBuffer!=null) {
+        if (dataChannel.dataBuffer != null) {
             for (i in 0 until dataChannel.dataBuffer!!.size / 12) {
                 mGraphAdapterMotionAX?.addDataPointTimeDomain(DataChannel.bytesToDoubleMPUAccel(dataChannel.dataBuffer!![12 * i], dataChannel.dataBuffer!![12 * i + 1]), mTimestampIdxMPU)
                 mGraphAdapterMotionAY?.addDataPointTimeDomain(DataChannel.bytesToDoubleMPUAccel(dataChannel.dataBuffer!![12 * i + 2], dataChannel.dataBuffer!![12 * i + 3]), mTimestampIdxMPU)
@@ -732,15 +824,13 @@ class DeviceControlActivity : Activity(), ActBle.ActBleListener {
         }
     }
 
-//    private external fun jSSVEPCfilter(data: DoubleArray): FloatArray
-
     private external fun jdownSample(data: DoubleArray, sampleRate: Int): DoubleArray
 
     private external fun jecgBandStopFilter(data: DoubleArray): DoubleArray
 
     private external fun jmainInitialization(initialize: Boolean): Int
 
-//    private external fun jecgVarFilter(data_array: DoubleArray, sampleRate: Double, windowLength: Double): FloatArray
+    private external fun jecgFiltRescale(data: DoubleArray): FloatArray
 
     companion object {
         val HZ = "0 Hz"
@@ -760,6 +850,7 @@ class DeviceControlActivity : Activity(), ActBle.ActBleListener {
         var mSSVEPClass = 0.0
         //Save Data File
         private var mPrimarySaveDataFile: SaveDataFile? = null
+        private var mTensorflowOutputsSaveFile: SaveDataFile? = null
         private var mSaveFileMPU: SaveDataFile? = null
 
         init {

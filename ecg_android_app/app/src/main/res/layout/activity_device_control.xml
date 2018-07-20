@@ -21,6 +21,14 @@
             android:text="Export"
             android:textColor="#000000" />
 
+        <Switch
+            android:id="@+id/tensorflowClassificationSwitch"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_weight="0.1"
+            android:checked="false"
+            android:text="TF" />
+
         <ToggleButton
             android:id="@+id/toggleButtonGraph"
             android:layout_width="wrap_content"

@@ -41,9 +41,8 @@ y_shape = [seq_length, num_classes]
 # x_lead_ii, y_ii = tfs.load_data_v2('data/ptb_ecg_lead_convert/lead_ii', [seq_length, 1], [1], 'relevant_data', 'Y')
 # x_lead_ii, y_ii = tfs.load_data_v2('data/ptb_ecg_lead_convert/dummy_ii', [seq_length, 1], [1], 'relevant_data', 'Y')
 
-x_lead_v3 = tfs.load_mat('data/ptb_ecg_lead_convert/lead_v3_all/all_x.mat', 'X', [seq_length, 1])
+x_lead_v3 = tfs.load_mat('data/ptb_ecg_lead_convert/lead_v3_all/all_x.mat', key='X', shape=[seq_length, 1])
 x_lead_ii = tfs.load_mat('data/ptb_ecg_lead_convert/lead_ii_all/all_y.mat', key='Y', shape=[seq_length, 1])
-
 x_train, x_test, y_train, y_test = train_test_split(x_lead_v3, x_lead_ii, train_size=0.75, random_state=1)
 
 
@@ -77,7 +76,8 @@ def build_generator():
     u2 = deconv_layer(u1, d2, 64, f_size=5)
     u3 = deconv_layer(u2, d1, 32, f_size=5)
     u4 = UpSampling1D(size=2)(u3)
-    output_samples = Conv1D(1, kernel_size=5, strides=1, padding='same', activation='tanh')(u4)
+    output_samples = Conv1D(1, kernel_size=5, strides=1, padding='same', activation='tanh')(u4)  #
+    # output_samples = Activation('tanh')(cu4)
     return Model(input_samples, output_samples)
 
 
@@ -296,7 +296,7 @@ if TRAIN:
     savemat(keras_training_file, mdict={keras_training_epochs_key: prev_training_epochs + update,
                                         keras_training_batch_size_key: batch_size})
 
-print('Evaluating & Saving Test Set:')
+# print('Evaluating & Saving Test Set:')
 # Generate Fake Images:
 fake_B = g_AB.predict(x_test)
 fake_A = g_BA.predict(y_test)
@@ -312,5 +312,4 @@ print('Test Data Saved: ', output_folder + 'test_' + description + '_' + str(tot
 
 # Export Generator g_AB:
 model = tfs.export_model_keras(keras_g_AB_location, export_dir=tfs.prep_dir(keras_g_AB_opt_location),
-                               model_name=description + 'g_AB', sequential=False,
-                               custom_objects={'InstanceNormalization': InstanceNormalization})
+                               model_name=description + 'g_AB', sequential=False)

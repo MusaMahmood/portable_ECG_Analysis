@@ -6,6 +6,7 @@
 #include "ssvep_filter_f32.h"
 #include "downsample_250Hz.h"
 #include "ecg_bandstop_250Hz.h"
+#include "ecg_filt_rescale.h"
 
 /*Additional Includes*/
 #include <jni.h>
@@ -13,6 +14,20 @@
 
 #define  LOG_TAG "jniExecutor-cpp"
 #define  LOGE(...)  __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+
+extern "C" {
+JNIEXPORT jfloatArray JNICALL
+Java_com_yeolabgt_mahmoodms_ecgmpu1chdemo_DeviceControlActivity_jecgFiltRescale(
+        JNIEnv *env, jobject jobject1, jdoubleArray data) {
+    jdouble *X = env->GetDoubleArrayElements(data, NULL);
+    float Y[2000];
+    if (X == NULL) LOGE("ERROR - C_ARRAY IS NULL");
+    jfloatArray m_result = env->NewFloatArray(2000);
+    ecg_filt_rescale(X, Y);
+    env->SetFloatArrayRegion(m_result, 0, 2000, Y);
+    return m_result;
+}
+}
 
 extern "C" {
 JNIEXPORT jdoubleArray JNICALL

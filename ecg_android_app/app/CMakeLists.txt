@@ -30,6 +30,8 @@ add_library( # Sets the name of the library.
                 src/main/cpp/ssvep_filter_f32.cpp
                 src/main/cpp/downsample_250Hz.cpp
                 src/main/cpp/ecg_bandstop_250Hz.cpp
+                src/main/cpp/ecg_filt_rescale.cpp
+
 
                 # Executor
                 src/main/cpp/jniExecutor.cpp

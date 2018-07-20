@@ -19,4 +19,4 @@ from keras.optimizers import Adam
 from keras.backend import tensorflow_backend as tf_backend
 from keras.layers import Bidirectional, CuDNNLSTM, Conv1D, LeakyReLU, Flatten, Activation, Input
 
-# Setup: TODO: CONVERT TO LSGAN
+# Setup: TODO:
