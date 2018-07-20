@@ -11,12 +11,11 @@ import tensorflow as tf
 import time
 
 from keras import backend as K
+from sklearn import metrics as skmet
 from scipy.io import loadmat, savemat
-from keras.models import Sequential, load_model
+from keras.models import Sequential, load_model, Model
 from tensorflow.python.tools import freeze_graph
 from tensorflow.python.tools import optimize_for_inference_lib
-from sklearn import metrics as skmet
-
 
 # GAN:
 # def generator_a(inputs, latent_space):
@@ -312,6 +311,13 @@ def check_prediction(y, outputs):
     return tf.equal(prediction, correct_class), prediction
 
 
+def load_mat(file_path, key, shape):
+    x_array = loadmat(file_path).get(key)
+    x_array = np.reshape(x_array, [x_array.shape[0], *shape])
+    print("Loaded Data Shape: ", key, ': ', x_array.shape)
+    return x_array
+
+
 def load_data_v2(data_directory, x_shape, y_shape, key_x, key_y, shuffle=False, ind2vec=False):
     x_train_data = np.empty([0, *x_shape], np.float32)
     y_train_data = np.empty([0, *y_shape], np.float32)
@@ -352,9 +358,14 @@ def load_data(data_directory, image_shape, key_x, key_y, shuffle=False):
 
 
 # Save graph/model:
-def export_model_keras(keras_model='model.h5', export_dir="graph", model_name="temp_model_name"):
+def export_model_keras(keras_model='model.h5', export_dir="graph", model_name="temp_model_name", sequential=True, custom_objects=None):
     if os.path.isfile(keras_model):
-        model = load_model(keras_model)
+        if custom_objects is None:
+            model = load_model(keras_model)
+        else:
+            model = load_model(keras_model, custom_objects=custom_objects)
+    else:
+        return
 
     # All new operations will be in test mode from now on.
     K.set_learning_phase(0)
@@ -364,7 +375,11 @@ def export_model_keras(keras_model='model.h5', export_dir="graph", model_name="t
     weights = model.get_weights()
 
     # Re-build a model where the learning phase is now hard-coded to 0.
-    new_model = Sequential.from_config(config)
+    if sequential:
+        new_model = Sequential.from_config(config, custom_objects=custom_objects)
+    else:
+        new_model = Model.from_config(config, custom_objects=custom_objects)
+
     new_model.set_weights(weights)
 
     temp_dir = "graph"

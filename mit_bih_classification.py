@@ -27,7 +27,7 @@ output_folder = 'classify_data_out/n' + str(num_channels) + 'ch/'
 version_num = 0
 LSTM_UNITS = 64
 learn_rate = 0.01
-description = 'normal_3cnn_fixed.conv1d_seq2seq_' + str(LSTM_UNITS) + 'lr' + str(learn_rate) + 'ep' + str(epochs) + '_v1'
+description = 'normal_2cnn_fixed.conv1d_seq2seq_' + str(LSTM_UNITS) + 'lr' + str(learn_rate) + 'ep' + str(epochs) + '_v1'
 keras_model_name = description + '.h5'
 file_name = description
 seq_length = 2000
@@ -40,8 +40,7 @@ else:
 y_shape = [seq_length, num_classes]
 
 # Import Data:
-x_tt, y_tt = tfs.load_data_v2('data/extended_5_class/mit_bih_tlabeled_w8s_fixed', [seq_length, 2],
-                              y_shape, 'relevant_data', 'Y')
+x_tt, y_tt = tfs.load_data_v2('data/extended_5_class/mit_bih_tlabeled_w8s_fixed', [seq_length, 2], y_shape, 'relevant_data', 'Y')
 if num_channels < 2:
     x_tt = np.reshape(x_tt[:, :, 0], [-1, seq_length, 1])
 xx_flex, y_flex = tfs.load_data_v2('data/flexEcg_8s_normal', [seq_length, 1], [1], 'relevant_data', 'Y')
@@ -74,9 +73,9 @@ batch_size = 256
 tf_backend.set_session(tfs.get_session(0.9))
 with tf.device('/gpu:0'):
     start_time_ms = tfs.current_time_ms()
-    model = get_model_conv1d_bilstm()
-    model.fit(x_train, y_train, batch_size=batch_size, epochs=epochs, verbose=1)  # train the model
-    model.save(keras_model_name)
+    # model = get_model_conv1d_bilstm()
+    # model.fit(x_train, y_train, batch_size=batch_size, epochs=epochs, verbose=1)  # train the model
+    # model.save(keras_model_name)
 
     if os.path.isfile(keras_model_name):
         model = load_model(keras_model_name)

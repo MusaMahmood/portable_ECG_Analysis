@@ -19,12 +19,14 @@ from keras.layers import Conv1D, LeakyReLU, Input, Concatenate
 from keras_contrib.layers.normalization import InstanceNormalization  # https://arxiv.org/abs/1701.02096;
 
 # Setup:
-TRAIN = True  # TRAIN ANYWAY FOR # epochs, or just evaluate
+TRAIN = False  # TRAIN ANYWAY FOR # epochs, or just evaluate
 batch_size = 128
-epochs = 50
+epochs = 10
 num_channels = 1
 num_classes = 1
 learn_rate = 0.0002
+lambda_cycle = 10.0  # Cycle-consistency loss
+lambda_id = 0.1 * lambda_cycle  # Identity loss
 label = 'ptb_ecg_cycle_gan_v1_lr' + str(learn_rate) + '_r0'
 model_dir = "model_exports/" + label + '/'
 output_folder = 'outputs/' + label + '/'
@@ -34,10 +36,14 @@ input_length = seq_length
 x_shape = [seq_length, 1]
 y_shape = [seq_length, num_classes]
 
-x_lead_v3, y_v3 = tfs.load_data_v2('data/ptb_ecg_lead_convert/lead_v3', [seq_length, 1], [1], 'relevant_data', 'Y')
+# x_lead_v3, y_v3 = tfs.load_data_v2('data/ptb_ecg_lead_convert/lead_v3', [seq_length, 1], [1], 'relevant_data', 'Y')
 # x_lead_v3, y_v3 = tfs.load_data_v2('data/ptb_ecg_lead_convert/dummy_v3', [seq_length, 1], [1], 'relevant_data', 'Y')
-x_lead_ii, y_ii = tfs.load_data_v2('data/ptb_ecg_lead_convert/lead_ii', [seq_length, 1], [1], 'relevant_data', 'Y')
+# x_lead_ii, y_ii = tfs.load_data_v2('data/ptb_ecg_lead_convert/lead_ii', [seq_length, 1], [1], 'relevant_data', 'Y')
 # x_lead_ii, y_ii = tfs.load_data_v2('data/ptb_ecg_lead_convert/dummy_ii', [seq_length, 1], [1], 'relevant_data', 'Y')
+
+x_lead_v3 = tfs.load_mat('data/ptb_ecg_lead_convert/lead_v3_all/all_x.mat', 'X', [seq_length, 1])
+x_lead_ii = tfs.load_mat('data/ptb_ecg_lead_convert/lead_ii_all/all_y.mat', key='Y', shape=[seq_length, 1])
+
 x_train, x_test, y_train, y_test = train_test_split(x_lead_v3, x_lead_ii, train_size=0.75, random_state=1)
 
 
@@ -102,23 +108,52 @@ keras_d_B_location = tfs.prep_dir(model_dir) + description + 'd_B.h5'
 keras_g_BA_location = tfs.prep_dir(model_dir) + description + 'g_BA.h5'
 keras_g_AB_location = tfs.prep_dir(model_dir) + description + 'g_AB.h5'
 
+keras_g_AB_opt_location = tfs.prep_dir(model_dir) + '/opt_ptb_cycle_gan'
 # Load if it exists:
 if os.path.isfile(keras_d_A_location) and os.path.isfile(keras_d_B_location) and os.path.isfile(
         keras_g_AB_location) and os.path.isfile(keras_g_BA_location) and os.path.isfile(keras_combined_model_location):
     print('Loading existing models from directory: ', model_dir, description)
+    # Load discriminators
     d_A = load_model(keras_d_A_location)
     d_B = load_model(keras_d_B_location)
+    print('Discriminator: ')
+    print(d_A.summary())
+    optimizer = Adam(learn_rate, beta_1=0.50)
+    d_A.compile(loss='mse', optimizer=optimizer, metrics=['accuracy'])
+    d_B.compile(loss='mse', optimizer=optimizer, metrics=['accuracy'])
+    # Load Generators:
     g_AB = load_model(keras_g_AB_location)
     g_BA = load_model(keras_g_BA_location)
+    print('Generator: ')
+    print(g_AB.summary())
+    input_A = Input(shape=(input_length, 1))
+    input_B = Input(shape=(input_length, 1))
+    # Translate images to other domain
+    fake_B = g_AB(input_A)
+    fake_A = g_BA(input_B)
+    # Translate Images back to original domain
+    reconstr_A = g_BA(input_B)
+    reconstr_B = g_AB(input_A)
+    # Identity mapping of images
+    input_A_id = g_BA(input_A)
+    input_B_id = g_AB(input_B)
+    # For the combined model we only train the generators:
+    d_A.trainable = False
+    d_B.trainable = False
+    # Discriminators determines validity of translated data
+    valid_A = d_A(fake_A)
+    valid_B = d_B(fake_B)
+
     combined_model = load_model(keras_combined_model_location)
+    print(combined_model.summary())
+    combined_model.compile(loss=['mse', 'mse', 'mae', 'mae', 'mae', 'mae'],
+                           loss_weights=[1, 1, lambda_cycle, lambda_cycle, lambda_id, lambda_id], optimizer=optimizer)
 else:
     # Set train = 1
     print('Existing model of description [', description, '] not found!')
     TRAIN = True
     print('Training automatically enabled! - Running ', epochs, ' epochs!')
     # Manually create models:
-    lambda_cycle = 10.0  # Cycle-consistency loss
-    lambda_id = 0.1 * lambda_cycle  # Identity loss
     optimizer = Adam(learn_rate, beta_1=0.50)
     # Build and compile the discriminators
     d_A = build_discriminator()
@@ -216,14 +251,14 @@ if TRAIN:
             # Plot the progress
             print(
                 "[Epoch %d/%d] [Batch %d/%d] [D loss: %f, acc: %3d%%] "
-                "[G loss: %05f, adv: %05f, recon: %05f, id: %05f] time: %s " \
+                "[G loss: %05f, adv: %05f, recon: %05f, id: %05f] time: %s "
                 % (epoch, epochs,
                    index, number_batches,
                    d_loss[0], 100 * d_loss[1],
                    g_loss[0],
-                   np.mean(g_loss[1:3]),
-                   np.mean(g_loss[3:5]),
-                   np.mean(g_loss[5:6]),
+                   float(np.mean(g_loss[1:3])),
+                   float(np.mean(g_loss[3:5])),
+                   float(np.mean(g_loss[5:6])),
                    elapsed_time))
         if epoch % 10 == 0 and epoch != 0:
             # Translate inputs to other domain:
@@ -250,8 +285,6 @@ if TRAIN:
             savemat(tfs.prep_dir(output_folder) + description + "_%d.mat" % total_epochs, mdict=mdict)
             last_epoch_update = epoch
 
-
-
     # Save Models After Training Completed
     combined_model.save(keras_combined_model_location)
     g_AB.save(keras_g_AB_location)
@@ -275,4 +308,9 @@ total_epochs = loadmat(keras_training_file).get(keras_training_epochs_key)
 mdict = {'x_val': x_test, 'y_true': y_test, 'fake_A': fake_A, 'fake_B': fake_B, 'reconstr_A': reconstr_A,
          'reconstr_B': reconstr_B}
 savemat(tfs.prep_dir(output_folder) + 'test_' + description + '_' + str(total_epochs) + 'epochs.mat', mdict=mdict)
-print('Test Data Saved: ', output_folder + 'test_' + description + ".mat")
+print('Test Data Saved: ', output_folder + 'test_' + description + '_' + str(total_epochs) + 'epochs.mat')
+
+# Export Generator g_AB:
+model = tfs.export_model_keras(keras_g_AB_location, export_dir=tfs.prep_dir(keras_g_AB_opt_location),
+                               model_name=description + 'g_AB', sequential=False,
+                               custom_objects={'InstanceNormalization': InstanceNormalization})
