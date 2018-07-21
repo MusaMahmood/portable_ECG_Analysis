@@ -21,13 +21,13 @@ from keras_contrib.layers.normalization import InstanceNormalization  # https://
 # Setup:
 TRAIN = False  # TRAIN ANYWAY FOR # epochs, or just evaluate
 batch_size = 128
-epochs = 10
+epochs = 100
 num_channels = 1
 num_classes = 1
 learn_rate = 0.0002
 lambda_cycle = 10.0  # Cycle-consistency loss
 lambda_id = 0.1 * lambda_cycle  # Identity loss
-label = 'ptb_ecg_cycle_gan_v1_lr' + str(learn_rate) + '_r0'
+label = 'ptb_ecg_cycle_gan_leadv2_lr' + str(learn_rate) + '_r0'
 model_dir = "model_exports/" + label + '/'
 output_folder = 'outputs/' + label + '/'
 description = label
@@ -41,9 +41,9 @@ y_shape = [seq_length, num_classes]
 # x_lead_ii, y_ii = tfs.load_data_v2('data/ptb_ecg_lead_convert/lead_ii', [seq_length, 1], [1], 'relevant_data', 'Y')
 # x_lead_ii, y_ii = tfs.load_data_v2('data/ptb_ecg_lead_convert/dummy_ii', [seq_length, 1], [1], 'relevant_data', 'Y')
 
-x_lead_v3 = tfs.load_mat('data/ptb_ecg_lead_convert/lead_v3_all/all_x.mat', key='X', shape=[seq_length, 1])
+x_lead_v2 = tfs.load_mat('data/ptb_ecg_lead_convert/lead_v2_all/all_x.mat', key='X', shape=[seq_length, 1])
 x_lead_ii = tfs.load_mat('data/ptb_ecg_lead_convert/lead_ii_all/all_y.mat', key='Y', shape=[seq_length, 1])
-x_train, x_test, y_train, y_test = train_test_split(x_lead_v3, x_lead_ii, train_size=0.75, random_state=1)
+x_train, x_test, y_train, y_test = train_test_split(x_lead_v2, x_lead_ii, train_size=0.75, random_state=1)
 
 
 def build_generator():

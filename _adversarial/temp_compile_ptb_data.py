@@ -7,7 +7,7 @@ input_length = seq_length
 x_shape = [seq_length, 1]
 y_shape = [seq_length, num_classes]
 x_lead_v3, y_v3 = tfs.load_data_v2('data/ptb_ecg_lead_convert/lead_v2', [seq_length, 1], [1], 'relevant_data', 'Y')
-# x_lead_ii, y_ii = tfs.load_data_v2('data/ptb_ecg_lead_convert/lead_ii', [seq_length, 1], [1], 'relevant_data', 'Y')
+x_lead_ii, y_ii = tfs.load_data_v2('data/ptb_ecg_lead_convert/lead_ii', [seq_length, 1], [1], 'relevant_data', 'Y')
 key_x = 'X'
 key_y = 'Y'
 
