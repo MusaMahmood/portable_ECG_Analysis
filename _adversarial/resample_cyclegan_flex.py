@@ -35,8 +35,6 @@ y_shape = [seq_length, num_classes]
 
 # Import Data:
 x_tt, y_tt = tfs.load_data_v2('data/flex_overlap', [seq_length, 1], [1], 'relevant_data', 'Y')  # Ignore Y.
-x_lead_v3 = tfs.load_data_v2('data/ptb_ecg_lead_convert/lead_v3', [seq_length, 1], [1], 'relevant_data', 'Y')
-x_lead_ii = tfs.load_data_v2('data/ptb_ecg_lead_convert/lead_ii', [seq_length, 1], [1], 'relevant_data', 'Y')
 
 if num_channels < 2:
     x_tt = np.reshape(x_tt[:, :, 0], [-1, seq_length, 1])

@@ -16,10 +16,15 @@ from keras.utils.generic_utils import Progbar
 from keras.layers.convolutional import UpSampling1D
 from sklearn.model_selection import train_test_split
 from keras.layers import Conv1D, LeakyReLU, Input, Concatenate
-from keras_contrib.layers.normalization import InstanceNormalization  # https://arxiv.org/abs/1701.02096;
+from keras_contrib.layers.normalization import InstanceNormalization
+
+# Sources: (Ctrl-LMB in Pycharm)
+# Instance Norm: https://arxiv.org/abs/1701.02096
+# Cycle GAN: https://arxiv.org/abs/1703.10593
+# GAN (orig paper): http://papers.nips.cc/paper/5423-generative-adversarial-nets.pdf
 
 # Setup:
-TRAIN = False  # TRAIN ANYWAY FOR # epochs, or just evaluate
+TRAIN = True  # TRAIN ANYWAY FOR # epochs, or just evaluate
 batch_size = 128
 epochs = 100
 num_channels = 1
@@ -35,11 +40,6 @@ seq_length = 2000
 input_length = seq_length
 x_shape = [seq_length, 1]
 y_shape = [seq_length, num_classes]
-
-# x_lead_v3, y_v3 = tfs.load_data_v2('data/ptb_ecg_lead_convert/lead_v3', [seq_length, 1], [1], 'relevant_data', 'Y')
-# x_lead_v3, y_v3 = tfs.load_data_v2('data/ptb_ecg_lead_convert/dummy_v3', [seq_length, 1], [1], 'relevant_data', 'Y')
-# x_lead_ii, y_ii = tfs.load_data_v2('data/ptb_ecg_lead_convert/lead_ii', [seq_length, 1], [1], 'relevant_data', 'Y')
-# x_lead_ii, y_ii = tfs.load_data_v2('data/ptb_ecg_lead_convert/dummy_ii', [seq_length, 1], [1], 'relevant_data', 'Y')
 
 x_lead_v2 = tfs.load_mat('data/ptb_ecg_lead_convert/lead_v2_all/all_x.mat', key='X', shape=[seq_length, 1])
 x_lead_ii = tfs.load_mat('data/ptb_ecg_lead_convert/lead_ii_all/all_y.mat', key='Y', shape=[seq_length, 1])
