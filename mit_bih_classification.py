@@ -4,21 +4,24 @@
 
 # Imports:
 import os
+
 import keras as k
 import numpy as np
-import tf_shared as tfs
 import tensorflow as tf
-
-from scipy.io import savemat
 from keras import optimizers, regularizers
-from keras.models import Sequential, load_model
-from keras.layers import Dense, Dropout, Reshape
-from sklearn.model_selection import train_test_split
-from keras.layers.normalization import BatchNormalization
 from keras.backend import tensorflow_backend as tf_backend
 from keras.layers import Bidirectional, CuDNNLSTM
+from keras.layers import Dense, Dropout, Reshape
+from keras.layers.normalization import BatchNormalization
+from keras.models import Sequential, load_model
+from scipy.io import savemat
+from sklearn.model_selection import train_test_split
+
+import tf_shared as tfs
 
 # Setup:
+TRAIN = False
+SAVE_HIDDEN = True
 epochs = 40
 num_channels = 1
 num_classes = 5
@@ -27,7 +30,8 @@ output_folder = 'classify_data_out/n' + str(num_channels) + 'ch/'
 version_num = 0
 LSTM_UNITS = 64
 learn_rate = 0.01
-description = 'normal_2cnn_fixed.conv1d_seq2seq_' + str(LSTM_UNITS) + 'lr' + str(learn_rate) + 'ep' + str(epochs) + '_v1'
+description = 'normal_2cnn_fixed.conv1d_seq2seq_' + str(LSTM_UNITS) + 'lr' + str(learn_rate) + 'ep' + str(
+    epochs) + '_v1'
 keras_model_name = description + '.h5'
 file_name = description
 seq_length = 2000
@@ -40,7 +44,8 @@ else:
 y_shape = [seq_length, num_classes]
 
 # Import Data:
-x_tt, y_tt = tfs.load_data_v2('data/extended_5_class/mit_bih_tlabeled_w8s_fixed', [seq_length, 2], y_shape, 'relevant_data', 'Y')
+x_tt, y_tt = tfs.load_data_v2('data/extended_5_class/mit_bih_tlabeled_w8s_fixed', [seq_length, 2], y_shape,
+                              'relevant_data', 'Y')
 if num_channels < 2:
     x_tt = np.reshape(x_tt[:, :, 0], [-1, seq_length, 1])
 xx_flex, y_flex = tfs.load_data_v2('data/flexEcg_8s_normal', [seq_length, 1], [1], 'relevant_data', 'Y')
@@ -52,7 +57,7 @@ def get_model_conv1d_bilstm():
     k_model.add(Reshape((seq_length, num_channels), input_shape=(input_shape, 1)))
     k_model.add(k.layers.Conv1D(128, 8, strides=2, padding='same', activation='relu'))
     k_model.add(k.layers.Conv1D(256, 8, strides=2, padding='same', activation='relu'))
-    k_model.add(k.layers.Conv1D(512, 8, strides=2, padding='same', activation='relu'))
+    # k_model.add(k.layers.Conv1D(512, 8, strides=2, padding='same', activation='relu'))
     k_model.add(Reshape(target_shape=(seq_length, 64)))
     k_model.add(Bidirectional(CuDNNLSTM(LSTM_UNITS, return_sequences=True)))
     k_model.add(Dropout(0.2))
@@ -73,23 +78,36 @@ batch_size = 256
 tf_backend.set_session(tfs.get_session(0.9))
 with tf.device('/gpu:0'):
     start_time_ms = tfs.current_time_ms()
-    # model = get_model_conv1d_bilstm()
-    # model.fit(x_train, y_train, batch_size=batch_size, epochs=epochs, verbose=1)  # train the model
-    # model.save(keras_model_name)
+    if TRAIN:
+        model = get_model_conv1d_bilstm()
+        model.fit(x_train, y_train, batch_size=batch_size, epochs=epochs, verbose=1)  # train the model
+        model.save(keras_model_name)
 
     if os.path.isfile(keras_model_name):
         model = load_model(keras_model_name)
+        if not TRAIN:
+            print(model.summary())
         score, acc = model.evaluate(x_test, y_test, batch_size=128, verbose=1)
         print('Test score: {} , Test accuracy: {}'.format(score, acc))
 
     # predict
     yy_probabilities = model.predict(x_test)
-    # TODO: Change this and keep the probability:
     yy_predicted = tfs.maximize_output_probabilities(yy_probabilities)  # Maximize probabilities of prediction.
 
     # Evaluate other dataset:
     yy_probabilities_f = model.predict(xx_flex)
     yy_predicted_f = tfs.maximize_output_probabilities(yy_probabilities_f)  # Maximize probabilities of prediction.
+
+    # Evaluate hidden layers: # 'conv1d_3'
+    # https://keras.io/getting-started/faq/#how-can-i-obtain-the-output-of-an-intermediate-layer
+
+    if SAVE_HIDDEN:
+        layers_of_interest = ['conv1d_1', 'conv1d_2', 'reshape_2', 'bidirectional_1', 'dense_1', 'dense_2']
+        np.random.seed(0)
+        rand_indices = np.random.randint(0, x_test.shape[0], 250)
+        print('Saving hidden layers: ', layers_of_interest)
+        tfs.get_keras_layers(model, layers_of_interest, x_test[rand_indices],
+                             output_dir='I:/_gan_data_backup/hidden_layers/')
 
     print('Elapsed Time (ms): ', tfs.current_time_ms() - start_time_ms)
     print('Elapsed Time (min): ', (tfs.current_time_ms() - start_time_ms) / 60000)

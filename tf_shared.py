@@ -468,6 +468,19 @@ def get_activations_mat(x, keep_prob, sess, layer, input_sample, input_shape):
     return units
 
 
+def get_keras_layers(model, layers_to_extract, data, output_dir):
+    # d = {}
+    for l in range(0, len(layers_to_extract)):
+        layer_name = layers_to_extract[l]
+        layer = model.get_layer(name=layer_name)
+        intermediate_layer_model = Model(inputs=model.input, outputs=layer.output)
+        # d[layer_name] = intermediate_layer_model.predict(data)
+        layer_output = intermediate_layer_model.predict(data)
+        savemat(prep_dir(output_dir) + layer_name + '.mat', mdict={layer_name: layer_output})
+        print('Saving ', layer_name, ' to: ', output_dir + layer_name + '.mat')
+    # return d
+
+
 def get_trained_vars(sess, filename):
     local_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
     d = {'ignore': 1.0}
