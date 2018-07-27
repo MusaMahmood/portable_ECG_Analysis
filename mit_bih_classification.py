@@ -107,7 +107,7 @@ with tf.device('/gpu:0'):
         rand_indices = np.random.randint(0, x_test.shape[0], 250)
         print('Saving hidden layers: ', layers_of_interest)
         tfs.get_keras_layers(model, layers_of_interest, x_test[rand_indices],
-                             output_dir='I:/_gan_data_backup/hidden_layers/')
+                             output_dir='I:/_gan_data_backup/hidden_layers/', fname='hidden_all_' + file_name + '.mat')
 
     print('Elapsed Time (ms): ', tfs.current_time_ms() - start_time_ms)
     print('Elapsed Time (min): ', (tfs.current_time_ms() - start_time_ms) / 60000)
