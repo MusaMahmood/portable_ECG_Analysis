@@ -468,8 +468,8 @@ def get_activations_mat(x, keep_prob, sess, layer, input_sample, input_shape):
     return units
 
 
-def get_keras_layers(model, layers_to_extract, data, output_dir, fname='hidden_all_outputs.mat'):
-    d = {'inputs': data}
+def get_keras_layers(model, layers_to_extract, data, y_true, output_dir, fname='hidden_all_outputs.mat'):
+    d = {'inputs': data, 'y_true': y_true}
     for l in range(0, len(layers_to_extract)):
         layer_name = layers_to_extract[l]
         layer = model.get_layer(name=layer_name)

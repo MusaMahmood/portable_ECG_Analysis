@@ -106,13 +106,12 @@ with tf.device('/gpu:0'):
         np.random.seed(0)
         rand_indices = np.random.randint(0, x_test.shape[0], 250)
         print('Saving hidden layers: ', layers_of_interest)
-        tfs.get_keras_layers(model, layers_of_interest, x_test[rand_indices],
+        tfs.get_keras_layers(model, layers_of_interest, x_test[rand_indices], y_test[rand_indices],
                              output_dir='I:/_gan_data_backup/hidden_layers/', fname='hidden_all_' + file_name + '.mat')
 
     print('Elapsed Time (ms): ', tfs.current_time_ms() - start_time_ms)
     print('Elapsed Time (min): ', (tfs.current_time_ms() - start_time_ms) / 60000)
 
-    # data_dict = {'x_val': x_test, 'y_val': y_test, 'y_out': yy_predicted, 'y_prob': yy_probabilities}
     data_dict = {'x_val': x_test, 'y_val': y_test, 'y_out': yy_predicted, 'y_prob': yy_probabilities, 'x_flex': xx_flex,
                  'y_prob_flex': yy_probabilities_f, 'y_out_flex': yy_predicted_f}
     savemat(tfs.prep_dir(output_folder) + file_name + '.mat', mdict=data_dict)
