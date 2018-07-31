@@ -6,7 +6,7 @@
 import os
 import datetime
 import numpy as np
-import tf_shared as tfs
+import tf_shared_k as tfs
 
 from keras.layers import Dropout
 from keras.optimizers import Adam
@@ -41,8 +41,8 @@ input_length = seq_length
 x_shape = [seq_length, 1]
 y_shape = [seq_length, num_classes]
 
-x_lead_v2 = tfs.load_mat('data/ptb_ecg_lead_convert/lead_v2_all/all_x.mat', key='X', shape=[seq_length, 1])
-x_lead_ii = tfs.load_mat('data/ptb_ecg_lead_convert/lead_ii_all/all_y.mat', key='Y', shape=[seq_length, 1])
+x_lead_v2 = tfs.load_mat('data/lead_v2_all/all_x.mat', key='X', shape=[seq_length, 1])
+x_lead_ii = tfs.load_mat('data/lead_ii_all/all_y.mat', key='Y', shape=[seq_length, 1])
 x_train, x_test, y_train, y_test = train_test_split(x_lead_v2, x_lead_ii, train_size=0.75, random_state=1)
 
 
@@ -228,10 +228,11 @@ if TRAIN:
             inputs_A = x_train[index * batch_size:(index + 1) * batch_size]
             inputs_B = y_train[index * batch_size:(index + 1) * batch_size]
 
-            # # # Train Discriminators:
+            # Convert inputs using generator.
             fake_B = g_AB.predict(inputs_A)
             fake_A = g_BA.predict(inputs_B)
 
+            # # # Train Discriminators:
             dA_loss_real = d_A.train_on_batch(inputs_A, valid)
             dA_loss_fake = d_A.train_on_batch(fake_A, fake)
             dA_loss = 0.5 * np.add(dA_loss_real, dA_loss_fake)
