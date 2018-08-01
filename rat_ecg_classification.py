@@ -1,3 +1,5 @@
+# Rat ECG Classification using Deep Neural Networks:
+# Copied from mit_bih_classification - for 2 classes
 # MUSA MAHMOOD - Copyright 2018
 # Python 3.6.3
 # TF 1.8.0
@@ -20,18 +22,17 @@ from sklearn.model_selection import train_test_split
 import tf_shared as tfs
 
 # Setup:
-TRAIN = False
+TRAIN = True
 SAVE_HIDDEN = True
 epochs = 40
-num_channels = 1
-num_classes = 5
+num_channels = 2
+num_classes = 2
 model_dir = "model_exports"
-output_folder = 'classify_data_out/n' + str(num_channels) + 'ch/'
+output_folder = 'classify_data_out/rat_n' + str(num_channels) + 'ch/'
 version_num = 0
 LSTM_UNITS = 64
 learn_rate = 0.01
-description = 'normal_2cnn_fixed.conv1d_seq2seq_' + str(LSTM_UNITS) + 'lr' + str(learn_rate) + 'ep' + str(
-    epochs) + '_v1'
+description = 'rat_2cnn.c1d_s2s_' + str(LSTM_UNITS) + 'lr' + str(learn_rate) + 'ep' + str(epochs) + '_v1'
 keras_model_name = description + '.h5'
 file_name = description
 seq_length = 2000
@@ -41,20 +42,21 @@ if num_channels < 2:
 else:
     x_shape = [seq_length, 2]
     input_shape = (seq_length, num_channels)
-y_shape = [seq_length, num_classes]
+
+y_shape = [seq_length, 2]
 
 # Import Data:
-x_tt, y_tt = tfs.load_data_v2('data/extended_5_class/mit_bih_tlabeled_w8s_fixed', [seq_length, 2], y_shape,
-                              'relevant_data', 'Y')
+x_tt, y_tt = tfs.load_data_v2('data/rat_ecg', [seq_length, 2], y_shape, 'relevant_data', 'Y')
+
 if num_channels < 2:
     x_tt = np.reshape(x_tt[:, :, 0], [-1, seq_length, 1])
-xx_flex, y_flex = tfs.load_data_v2('data/flexEcg_8s_normal', [seq_length, 1], [1], 'relevant_data', 'Y')
-x_train, x_test, y_train, y_test = train_test_split(x_tt, y_tt, train_size=0.75, random_state=1)  # 0.66
+
+x_train, x_test, y_train, y_test = train_test_split(x_tt, y_tt, train_size=0.75, random_state=1)
 
 
 def get_model_conv1d_bilstm():
     k_model = Sequential()
-    k_model.add(Reshape((seq_length, num_channels), input_shape=(input_shape, 1)))
+    k_model.add(Reshape((seq_length, num_channels), input_shape=input_shape))
     k_model.add(k.layers.Conv1D(128, 8, strides=2, padding='same', activation='relu'))
     k_model.add(k.layers.Conv1D(256, 8, strides=2, padding='same', activation='relu'))
     k_model.add(Reshape(target_shape=(seq_length, 64)))
@@ -93,10 +95,6 @@ with tf.device('/gpu:0'):
     yy_probabilities = model.predict(x_test)
     yy_predicted = tfs.maximize_output_probabilities(yy_probabilities)  # Maximize probabilities of prediction.
 
-    # Evaluate other dataset:
-    yy_probabilities_f = model.predict(xx_flex)
-    yy_predicted_f = tfs.maximize_output_probabilities(yy_probabilities_f)  # Maximize probabilities of prediction.
-
     # Evaluate hidden layers: # 'conv1d_3'
     # https://keras.io/getting-started/faq/#how-can-i-obtain-the-output-of-an-intermediate-layer
 
@@ -106,13 +104,13 @@ with tf.device('/gpu:0'):
         rand_indices = np.random.randint(0, x_test.shape[0], 250)
         print('Saving hidden layers: ', layers_of_interest)
         tfs.get_keras_layers(model, layers_of_interest, x_test[rand_indices], y_test[rand_indices],
-                             output_dir='I:/_gan_data_backup/hidden_layers/', fname='hidden_all_' + file_name + '.mat')
+                             output_dir=tfs.prep_dir('I:/_ecg_data_backup/classification/hidden_layers'),
+                             fname='rat_hidden_all_' + file_name + '.mat')
 
     print('Elapsed Time (ms): ', tfs.current_time_ms() - start_time_ms)
     print('Elapsed Time (min): ', (tfs.current_time_ms() - start_time_ms) / 60000)
 
-    data_dict = {'x_val': x_test, 'y_val': y_test, 'y_out': yy_predicted, 'y_prob': yy_probabilities, 'x_flex': xx_flex,
-                 'y_prob_flex': yy_probabilities_f, 'y_out_flex': yy_predicted_f}
+    data_dict = {'x_val': x_test, 'y_val': y_test, 'y_out': yy_predicted, 'y_prob': yy_probabilities}
     savemat(tfs.prep_dir(output_folder) + file_name + '.mat', mdict=data_dict)
 
 model = tfs.export_model_keras(keras_model_name, export_dir=tfs.prep_dir("graph"), model_name=description)
