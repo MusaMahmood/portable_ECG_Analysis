@@ -65,7 +65,6 @@ def export_model_keras(keras_model='model.h5', export_dir="graph", model_name="t
     input_binary = False
     input_node_names = [node.op.name for node in model.inputs]
     output_node_names = [node.op.name for node in model.outputs]
-    output_node_names_assigned = ['output']  # [node.op.name for node in model.outputs]
     print("Input layer name: ", input_node_names)
     print("Output layer name: ", output_node_names)
     restore_op_name = "save/restore_all"

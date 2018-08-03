@@ -31,14 +31,15 @@ def k_save_cycle_gan():
     exit(1)
 
 
-def get_session(gpu_fraction=0.9):
+def get_session(gpu_fraction=0.9, allow_soft_placement=False):
     # allocate % of gpu memory.
     num_threads = os.environ.get('OMP_NUM_THREADS')
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=gpu_fraction)
     if num_threads:
-        return tf.Session(config=tf.ConfigProto(gpu_options=gpu_options, intra_op_parallelism_threads=num_threads))
+        return tf.Session(config=tf.ConfigProto(gpu_options=gpu_options, intra_op_parallelism_threads=num_threads,
+                                                allow_soft_placement=allow_soft_placement))
     else:
-        return tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
+        return tf.Session(config=tf.ConfigProto(gpu_options=gpu_options, allow_soft_placement=allow_soft_placement))
 
 
 def maximize_output_probabilities(array):
@@ -334,6 +335,7 @@ def load_data_v2(data_directory, x_shape, y_shape, key_x, key_y, shuffle=False, 
     if shuffle:
         np.random.shuffle(x_train_data)
     if ind2vec:
+        y_train_data = np.reshape(y_train_data, [y_train_data.shape[0],])
         y_train_data = np.asarray(pd.get_dummies(y_train_data).values).astype(np.float32)
     # return data_array
     print("Loaded Data Shape: X:", x_train_data.shape, " Y: ", y_train_data.shape)
@@ -427,8 +429,16 @@ def export_model_keras(keras_model='model.h5', export_dir="graph", model_name="t
     print("2 - Android Optimized Model:", export_dir + '/opt_' + model_name + '.pb')
 
     print_graph_nodes(export_dir + '/frozen_' + model_name + '.pb')
+    print_graph_nodes(export_dir + '/opt_' + model_name + '.pb')
 
     return model
+
+
+def print_all_nodes(filename):
+    g = tf.GraphDef()
+    g.ParseFromString(open(filename, 'rb').read())
+    print('ALL NODES: ' + filename)
+    print([n for n in g.node])
 
 
 def print_graph_nodes(filename):

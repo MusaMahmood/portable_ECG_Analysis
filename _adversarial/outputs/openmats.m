@@ -1,8 +1,9 @@
 clr;
-% load('ecg_cycle_gan_v1_r2\ecg_cycle_gan_v1_r2_lr0.0005_100.mat');  %opt: 250-300
-load('ptb_ecg_cycle_gan_leadv2_lr0.0002_r0\ptb_ecg_cycle_gan_leadv2_lr0.0002_r0_80.mat');
-% load('I:\_gan_data_backup\ptb_ecg_cycle_gan_leadv2_lr0.0002_r0\ptb_ecg_cycle_gan_leadv2_lr0.0002_r0_100.mat');
-for w = 1:size(x_val,1)
+% load('I:\_gan_data_backup\compute_engine\ptb_ecg_cycle_gan_leadv2_lr0.0002_r0_230.mat');
+load('I:\_gan_data_backup\compute_engine\ptb_ecg_cycle_gan_leadv2_lr0.0002_r0_230.mat');
+% load('I:\_gan_data_backup\compute_engine\test_ptb_ecg_cycle_gan_leadv2_lr0.0002_r0_[[430]]epochs.mat');
+for w = 28430:size(x_val,1)
+    fprintf('Sample %d \n', w)
     figure(1);
     subplot(3, 2, 1);
     plot(x_val(w, :)); title('input-A'); ylim([0, 1])

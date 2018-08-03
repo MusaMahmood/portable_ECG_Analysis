@@ -39,4 +39,5 @@ rnn_annotation/qtdb/
 *.h5
 *.pdf
 graph/
+graph_rat/
 *.asv
