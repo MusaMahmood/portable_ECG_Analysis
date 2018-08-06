@@ -3,20 +3,21 @@
 # TF 1.8.0
 
 # Imports:
-import os
 import datetime
-import numpy as np
-import tf_shared_k as tfs
+import os
 
-from keras.layers import Dropout
-from keras.optimizers import Adam
-from scipy.io import savemat, loadmat
-from keras.models import Model, load_model
-from keras.utils.generic_utils import Progbar
-from keras.layers.convolutional import UpSampling1D
-from sklearn.model_selection import train_test_split
+import numpy as np
 from keras.layers import Conv1D, LeakyReLU, Input, Concatenate
+from keras.layers import Dropout
+from keras.layers.convolutional import UpSampling1D
+from keras.models import Model, load_model
+from keras.optimizers import Adam
+from keras.utils.generic_utils import Progbar
 from keras_contrib.layers.normalization import InstanceNormalization
+from scipy.io import savemat, loadmat
+from sklearn.model_selection import train_test_split
+
+import tf_shared_k as tfs
 
 # Sources: (Ctrl-LMB in Pycharm)
 # Instance Norm: https://arxiv.org/abs/1701.02096
@@ -28,7 +29,6 @@ TRAIN = True  # TRAIN ANYWAY FOR # epochs, or just evaluate
 batch_size = 128
 epochs = 100
 num_channels = 1
-num_classes = 1
 learn_rate = 0.0002
 lambda_cycle = 10.0  # Cycle-consistency loss
 lambda_id = 0.1 * lambda_cycle  # Identity loss
@@ -38,11 +38,11 @@ output_folder = 'outputs/' + label + '/'
 description = label
 seq_length = 2000
 input_length = seq_length
-x_shape = [seq_length, 1]
-y_shape = [seq_length, num_classes]
+x_shape = [seq_length, 2]
+y_shape = [seq_length, 1]
 
-x_lead_v2 = tfs.load_mat('data/lead_v2_all/all_x.mat', key='X', shape=[seq_length, 1])
-x_lead_ii = tfs.load_mat('data/lead_ii_all/all_y.mat', key='Y', shape=[seq_length, 1])
+x_lead_v2 = tfs.load_mat('data/ptb_ecg_2ch_half_overlap/lead_v23_all/all_x.mat', key='X', shape=[seq_length, 2])
+x_lead_ii = tfs.load_mat('data/ptb_ecg_2ch_half_overlap/lead_ii_all/all_y.mat', key='Y', shape=[seq_length, 1])
 x_train, x_test, y_train, y_test = train_test_split(x_lead_v2, x_lead_ii, train_size=0.75, random_state=1)
 
 
