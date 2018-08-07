@@ -104,7 +104,7 @@ with tf.device('/gpu:0'):
     # Predict & Print Confmat
     yy_probabilities = model.predict(x_test)
     yy_predicted = tfs.max_out_probs(yy_probabilities, sample_axis=0, dimensions=2)
-    confmat = confusion_matrix(y_test, yy_predicted)
+    confmat = confusion_matrix(tfs.vec2ind(y_test), tfs.vec2ind(yy_predicted))
     print("Confusion Matrix: \n", confmat)
     # Maximize probabilities of prediction.
 

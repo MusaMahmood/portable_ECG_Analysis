@@ -18,6 +18,21 @@ from tensorflow.python.tools import freeze_graph
 from tensorflow.python.tools import optimize_for_inference_lib
 
 
+def vec2ind(x, dimensions=2):
+    if dimensions == 2:
+        samples = x.shape[0]
+        new_array = np.zeros([samples, 1])
+        for i in range(x.shape[0]):
+            new_array[i, :] = x[i, :].argmax()
+        return new_array
+    else:
+        print('Not yet supported')
+
+
+def ind2vec(x):
+    return 0
+
+
 def get_session(gpu_fraction=0.9, allow_soft_placement=False):
     # allocate % of gpu memory.
     num_threads = os.environ.get('OMP_NUM_THREADS')
@@ -36,7 +51,7 @@ def max_out_probs(array, sample_axis=0, dimensions=2):
         array_out = np.copy(array)
         for i in range(array.shape[sample_axis]):
             b = np.zeros_like(array[i, :])
-            b[np.arange(len(array[i, :])), array[i, :].argmax(1)] = 1
+            b[array[i, :].argmax()] = 1
             array_out[i, :] = b
         return array_out
     else:
