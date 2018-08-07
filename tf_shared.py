@@ -18,19 +18,6 @@ from tensorflow.python.tools import freeze_graph
 from tensorflow.python.tools import optimize_for_inference_lib
 
 
-# GAN:
-# def generator_a(inputs, latent_space):
-# input_shape = np.shape(inputs)
-# tf.nn.conv2d(inputs, latent_space, strides=[1,1,1,1], padding='SAME')
-#     return 0
-def keras_load_cycle_gan(description):
-    exit(0)
-
-
-def k_save_cycle_gan():
-    exit(1)
-
-
 def get_session(gpu_fraction=0.9, allow_soft_placement=False):
     # allocate % of gpu memory.
     num_threads = os.environ.get('OMP_NUM_THREADS')
@@ -40,6 +27,21 @@ def get_session(gpu_fraction=0.9, allow_soft_placement=False):
                                                 allow_soft_placement=allow_soft_placement))
     else:
         return tf.Session(config=tf.ConfigProto(gpu_options=gpu_options, allow_soft_placement=allow_soft_placement))
+
+
+def max_out_probs(array, sample_axis=0, dimensions=2):
+    if dimensions == 3:
+        return maximize_output_probabilities(array)
+    elif dimensions == 2:
+        array_out = np.copy(array)
+        for i in range(array.shape[sample_axis]):
+            b = np.zeros_like(array[i, :])
+            b[np.arange(len(array[i, :])), array[i, :].argmax(1)] = 1
+            array_out[i, :] = b
+        return array_out
+    else:
+        print("Error: Could not find correct dimensions")
+        return array
 
 
 def maximize_output_probabilities(array):
@@ -335,7 +337,7 @@ def load_data_v2(data_directory, x_shape, y_shape, key_x, key_y, shuffle=False, 
     if shuffle:
         np.random.shuffle(x_train_data)
     if ind2vec:
-        y_train_data = np.reshape(y_train_data, [y_train_data.shape[0],])
+        y_train_data = np.reshape(y_train_data, [y_train_data.shape[0], ])
         y_train_data = np.asarray(pd.get_dummies(y_train_data).values).astype(np.float32)
     # return data_array
     print("Loaded Data Shape: X:", x_train_data.shape, " Y: ", y_train_data.shape)
