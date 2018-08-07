@@ -32,15 +32,15 @@ num_channels = 1
 num_classes = 2
 model_dir = "model_exports"
 output_folder = 'classify_data_out/rat_n' + str(num_channels) + 'ch/'
-learn_rate = 0.005
-description = 'ecg_2cnn.lr' + str(learn_rate) + 'ep' + str(epochs) + '_v' + str(VERSION_NUMBER)
+learn_rate = 0.001
+description = 'ecg_ptb_2cnn.lr' + str(learn_rate) + 'ep' + str(epochs) + '_v' + str(VERSION_NUMBER)
 keras_model_name = description + '.h5'
 file_name = description
 seq_length = 2000
 
 if num_channels < 2:
     x_shape = [seq_length, 1]
-    input_shape = seq_length
+    input_shape = (seq_length, num_channels)
 else:
     x_shape = [seq_length, 2]
     input_shape = (seq_length, num_channels)
@@ -65,13 +65,14 @@ def get_model():
     k_model.add(Reshape((seq_length, num_channels), input_shape=input_shape))
     k_model.add(Conv1D(128, 8, strides=2, padding='same', activation='relu'))
     k_model.add(Conv1D(256, 8, strides=2, padding='same', activation='relu'))
+    k_model.add(Conv1D(512, 8, strides=2, padding='same', activation='relu'))
     k_model.add(Reshape(target_shape=(1, seq_length * 64)))
-    k_model.add(Dense(64, activation='relu', kernel_regularizer=regularizers.l2(l=0.01)))
+    k_model.add(Dense(1024, activation='relu', kernel_regularizer=regularizers.l2(l=0.01)))
     k_model.add(Dropout(0.25))
     k_model.add(BatchNormalization())
     k_model.add(Dense(num_classes, activation='softmax'))
     k_model.add(Reshape(target_shape=(num_classes,)))
-    adam = optimizers.adam(lr=learn_rate, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+    adam = optimizers.adam(lr=learn_rate, beta_1=0.9, beta_2=0.999)
     k_model.compile(loss='categorical_crossentropy', optimizer=adam, metrics=['accuracy'])
     print(k_model.summary())
     return k_model
@@ -110,7 +111,7 @@ with tf.device('/gpu:0'):
     # Evaluate hidden layers: # 'conv1d_3'
     # https://keras.io/getting-started/faq/#how-can-i-obtain-the-output-of-an-intermediate-layer
     if SAVE_HIDDEN:
-        layers_of_interest = ['conv1d_1', 'conv1d_2', 'reshape_2', 'lstm_1', 'dense_1', 'dense_2']
+        layers_of_interest = ['conv1d_1', 'conv1d_2', 'reshape_2', 'dense_1', 'dense_2']
         np.random.seed(0)
         rand_indices = np.random.randint(0, x_test.shape[0], 250)
         print('Saving hidden layers: ', layers_of_interest)
