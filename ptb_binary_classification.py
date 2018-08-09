@@ -22,18 +22,18 @@ import tf_shared as tfs
 
 # Setup:
 TRAIN = True
+SAVE_FROZEN_MODEL = True
+SAVE_TEST_DATA = True
 SAVE_HIDDEN = False
 IND_TO_VEC = False
-SAVE_FROZEN_MODEL = False
-SAVE_TEST_DATA = False
-VERSION_NUMBER = 0
+VERSION_NUMBER = 3
 epochs = 50
 num_channels = 1
 num_classes = 2
 model_dir = "model_exports"
-output_folder = 'classify_data_out/rat_n' + str(num_channels) + 'ch/'
+output_folder = 'classify_data_out/ptb_n' + str(num_channels) + 'ch/'
 learn_rate = 0.001
-description = 'ecg_ptb_2cnn.lr' + str(learn_rate) + 'ep' + str(epochs) + '_v' + str(VERSION_NUMBER)
+description = 'ecg_ptb_2cnn.lr' + str(learn_rate) + '_v' + str(VERSION_NUMBER)
 keras_model_name = description + '.h5'
 file_name = description
 seq_length = 2000
@@ -66,7 +66,8 @@ def get_model():
     k_model.add(Conv1D(128, 8, strides=2, padding='same', activation='relu'))
     k_model.add(Conv1D(256, 8, strides=2, padding='same', activation='relu'))
     k_model.add(Conv1D(512, 8, strides=2, padding='same', activation='relu'))
-    k_model.add(Reshape(target_shape=(1, seq_length * 64)))
+    k_model.add(Dense(128, activation='relu', kernel_regularizer=regularizers.l2(l=0.01)))
+    k_model.add(Reshape(target_shape=(1, seq_length * 16)))
     k_model.add(Dense(1024, activation='relu', kernel_regularizer=regularizers.l2(l=0.01)))
     k_model.add(Dropout(0.25))
     k_model.add(BatchNormalization())
@@ -127,4 +128,4 @@ with tf.device('/gpu:0'):
 
 if SAVE_FROZEN_MODEL:
     tf_backend.set_learning_phase(0)
-    tfs.export_model_keras(keras_model_name, tfs.prep_dir("graph_rat"), model_name=description)
+    tfs.export_model_keras(keras_model_name, tfs.prep_dir("graph_ptb"), model_name=description)
