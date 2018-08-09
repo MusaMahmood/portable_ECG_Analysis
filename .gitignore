@@ -41,3 +41,4 @@ rnn_annotation/qtdb/
 graph/
 graph_rat/
 *.asv
+*.pb
