@@ -51,6 +51,9 @@ if num_channels < 2:
 
 x_train, x_test, y_train, y_test = train_test_split(x_tt, y_tt, train_size=0.75, random_state=1)
 
+x_test2, y_test2 = tfs.load_data_v2('data/ecg_rat_realtime_analysis', x_shape, y_shape, 'relevant_data', 'Y',
+                                    ind2vec=True)
+
 
 def get_model():
     k_model = Sequential()
@@ -92,13 +95,10 @@ with tf.device('/gpu:0'):
     score, acc = model.evaluate(x_test, y_test, batch_size=128, verbose=1)
     print('Test score: {} , Test accuracy: {}'.format(score, acc))
 
-    # Save blank, untrained model.
-    # k_model_untrained_no_cuda = get_model_conv1d_bilstm(export=True)
-    # k_model_untrained_no_cuda.save('alt_' + keras_model_name)
-
     # predict
     yy_probabilities = model.predict(x_test)
-    # yy_predicted = tfs.maximize_output_probabilities(yy_probabilities)  # Maximize probabilities of prediction.
+
+    y_prob2 = model.predict(x_test2)
 
     # Evaluate hidden layers: # 'conv1d_3'
     # https://keras.io/getting-started/faq/#how-can-i-obtain-the-output-of-an-intermediate-layer
@@ -117,6 +117,8 @@ with tf.device('/gpu:0'):
 
     data_dict = {'x_val': x_test, 'y_val': y_test, 'y_prob': yy_probabilities}
     savemat(tfs.prep_dir(output_folder) + file_name + '.mat', mdict=data_dict)
+    d2 = {'x_test': x_test2, 'y_prob': y_prob2}
+    savemat(output_folder+'realtime_rat_data.mat', mdict=d2)
 tf_backend.set_learning_phase(0)
 tfs.export_model_keras(keras_model_name, tfs.prep_dir("graph_rat"), model_name=description)
 
