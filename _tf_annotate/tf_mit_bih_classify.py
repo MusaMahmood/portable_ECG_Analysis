@@ -65,11 +65,6 @@ def get_graph_tf(inputs, keep_prob_, name_output_node='output'):
     r1 = tf.reshape(inputs, [-1, seq_length, num_channels])
     d1 = tf.layers.conv1d(inputs=r1, filters=128, kernel_size=8, strides=2, padding='same', activation='relu')
     d2 = tf.layers.conv1d(inputs=d1, filters=256, kernel_size=8, strides=2, padding='same', activation='relu')
-    # 2000 x (?, 64) x 2 (bi)
-    # r2 = tf.reshape(d2, [-1, seq_length, 64])
-    # r2_unstacked = tf.unstack(r2, axis=2)
-    # lstm_fw_cell = rnn.BasicLSTMCell(2000, forget_bias=1.0)
-    # lstm_bw_cell = rnn.BasicLSTMCell(2000, forget_bias=1.0)
     # 64 x (?, 2000), x2
     r2 = tf.reshape(d2, [-1, seq_length, 64])
     r2_unstacked = tf.unstack(r2, axis=2)
@@ -78,16 +73,17 @@ def get_graph_tf(inputs, keep_prob_, name_output_node='output'):
     # Get LSTM Output:
     outputs, _, _ = rnn.static_bidirectional_rnn(lstm_fw_cell, lstm_bw_cell, r2_unstacked, dtype=tf.float32)
     lstm_out = tf.stack(outputs, axis=2)
-    lstm_out_reshape = tf.reshape(lstm_out, [-1, seq_length, LSTM_UNITS])
+    lstm_out_reshape = tf.reshape(lstm_out, [-1, 64*128])
     # No activation ???
     drop1 = tf.nn.dropout(lstm_out_reshape, keep_prob=keep_prob_)
     bn1 = tf.layers.batch_normalization(drop1)
     # dense1 = tf.nn.relu(tfs.fully_connect_3d(bn1, [2 * LSTM_UNITS, LSTM_UNITS], [LSTM_UNITS]))
-    dense1 = tf.contrib.layers.fully_connected(bn1, 16)
+    dense1 = tf.nn.relu(tfs.fully_connect(bn1, [8192, 10000], [10000]))
     # dense1 = tf.layers.dense(inputs=bn1, units=64, activation='relu', kernel_regularizer=l2_regularizer(scale=0.01))
     drop2 = tf.nn.dropout(dense1, keep_prob=keep_prob_)
     bn2 = tf.layers.batch_normalization(drop2)
-    dense2 = tf.contrib.layers.fully_connected(bn2, num_classes)
+    dense2 = tf.reshape(bn2, [-1, 2000, 5])
+    # dense2 = tf.contrib.layers.fully_connected(bn2, num_classes)
     softmax_out = tf.nn.softmax(dense2, name=name_output_node)
     return softmax_out
 

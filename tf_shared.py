@@ -563,7 +563,7 @@ def var_weight_bias(w_shape, b_shape):
     return w, b
 
 
-def fully_connect_3d(x, w_shape, b_shape):
+def fully_connect(x, w_shape, b_shape):
     w_f, b_f = var_weight_bias(w_shape, b_shape)
     fc = tf.nn.bias_add(tf.matmul(x, w_f), b_f)
     return fc
