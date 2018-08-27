@@ -25,6 +25,14 @@ def vec2ind(x, dimensions=2):
         for i in range(x.shape[0]):
             new_array[i, :] = x[i, :].argmax()
         return new_array
+    elif dimensions == 3:
+        samples = x.shape[0]
+        seq_len = x.shape[1]
+        ind_array = np.zeros([samples, seq_len], dtype=np.int32)
+        for i in range(0, samples):
+            for s in range(0, seq_len):
+                ind_array[i, s] = int(x[i, s, :].argmax())
+        return ind_array
     else:
         print('Not yet supported')
 
@@ -377,6 +385,21 @@ def load_data(data_directory, image_shape, key_x, key_y, shuffle=False):
     return x_train_data, y_train_data
 
 
+def test_v3(sess, x, y, accuracy, x_test, y_test, test_type='Holdout Validation', test_batch_size=256, keep_prob=None):
+    test_accuracy = np.zeros(shape=[x_test.shape[0] // test_batch_size], dtype=np.float32)
+    for i in range(0, x_test.shape[0] // test_batch_size):
+        batch_x = x_test[i:i + test_batch_size]
+        batch_y = y_test[i:i + test_batch_size]
+        if keep_prob is not None:
+            test_accuracy[i] = sess.run(accuracy, feed_dict={x: batch_x, y: batch_y, keep_prob: 1.0})
+        else:
+            test_accuracy[i] = sess.run(accuracy, feed_dict={x: batch_x, y: batch_y})
+
+    test_accuracy = test_accuracy.mean()
+    print("Testing Accuracy - ", test_type, ':', test_accuracy, "\n\n")
+    return test_accuracy
+
+
 # Save graph/model:
 def export_model_keras(keras_model='model.h5', export_dir="graph", model_name="temp_model_name", sequential=True,
                        custom_objects=None):
@@ -390,11 +413,13 @@ def export_model_keras(keras_model='model.h5', export_dir="graph", model_name="t
 
     # All new operations will be in test mode from now on.
     K.set_learning_phase(0)
-
     # Serialize the model and get its weights, for quick re-building.
     config = model.get_config()
     weights = model.get_weights()
 
+    K.clear_session()
+    del model
+    K.set_learning_phase(0)
     # Re-build a model where the learning phase is now hard-coded to 0.
     if sequential:
         new_model = Sequential.from_config(config, custom_objects=custom_objects)
@@ -418,9 +443,9 @@ def export_model_keras(keras_model='model.h5', export_dir="graph", model_name="t
     # input_saver_def_path = ""
     input_saver_def_path = None
     input_binary = False
-    input_node_names = [node.op.name for node in model.inputs]
-    output_node_names = [node.op.name for node in model.outputs]
-    output_node_names_assigned = ['output']  # [node.op.name for node in model.outputs]
+    input_node_names = [node.op.name for node in new_model.inputs]
+    output_node_names = [node.op.name for node in new_model.outputs]
+    # output_node_names_assigned = ['output']  # [node.op.name for node in model.outputs]
     print("Input layer name: ", input_node_names)
     print("Output layer name: ", output_node_names)
     restore_op_name = "save/restore_all"
@@ -437,7 +462,8 @@ def export_model_keras(keras_model='model.h5', export_dir="graph", model_name="t
     with tf.gfile.Open(export_dir + '/frozen_' + model_name + '.pb', "rb") as f:
         input_graph_def.ParseFromString(f.read())
     output_graph_def = optimize_for_inference_lib.optimize_for_inference(input_graph_def, input_node_names,
-                                                                         output_node_names, tf.float32.as_datatype_enum)
+                                                                         output_node_names, tf.float32.as_datatype_enum,
+                                                                         toco_compatible=True)
     with tf.gfile.FastGFile(export_dir + '/opt_' + model_name + '.pb', "wb") as f:
         f.write(output_graph_def.SerializeToString())
 
@@ -447,8 +473,6 @@ def export_model_keras(keras_model='model.h5', export_dir="graph", model_name="t
 
     print_graph_nodes(export_dir + '/frozen_' + model_name + '.pb')
     print_graph_nodes(export_dir + '/opt_' + model_name + '.pb')
-
-    return model
 
 
 def print_all_nodes(filename):
@@ -531,3 +555,15 @@ def get_trained_vars(sess, filename):
 def beep(freq=900, length_ms=1000):
     # A 900Hz Beep:
     ws.Beep(freq, length_ms)
+
+
+def var_weight_bias(w_shape, b_shape):
+    w = tf.Variable(tf.truncated_normal(w_shape, stddev=0.1))
+    b = tf.Variable(tf.constant(0.1, shape=b_shape))
+    return w, b
+
+
+def fully_connect_3d(x, w_shape, b_shape):
+    w_f, b_f = var_weight_bias(w_shape, b_shape)
+    fc = tf.nn.bias_add(tf.matmul(x, w_f), b_f)
+    return fc

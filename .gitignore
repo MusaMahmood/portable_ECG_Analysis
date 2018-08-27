@@ -42,3 +42,4 @@ graph/
 graph_rat/
 *.asv
 *.pb
+_tf_annotate/model_out/
