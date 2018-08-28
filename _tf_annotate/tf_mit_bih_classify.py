@@ -9,7 +9,7 @@ import numpy as np
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from tensorflow.contrib import rnn
-# from tensorflow.contrib.layers import l2_regularizer
+from keras.layers import Dense
 from tensorflow.python.keras.losses import categorical_crossentropy
 from tensorflow.python.tools import freeze_graph, optimize_for_inference_lib
 
@@ -22,7 +22,7 @@ SAVE_HIDDEN = False
 SAVE_PREDICTIONS = False
 CUSTOM_EVALUATION = True
 VERSION_NUMBER = 2
-epochs = 10
+epochs = 40
 num_channels = 1
 num_classes = 5
 model_dir = "model_exports"
@@ -63,27 +63,23 @@ xx_flex, y_flex = tfs.load_data_v2('../data/flexEcg_8s_normal', [seq_length, 1],
 
 def get_graph_tf(inputs, keep_prob_, name_output_node='output'):
     r1 = tf.reshape(inputs, [-1, seq_length, num_channels])
-    d1 = tf.layers.conv1d(inputs=r1, filters=128, kernel_size=8, strides=2, padding='same', activation='relu')
-    d2 = tf.layers.conv1d(inputs=d1, filters=256, kernel_size=8, strides=2, padding='same', activation='relu')
+    d1 = tf.layers.conv1d(inputs=r1, filters=64, kernel_size=8, strides=2, padding='same', activation='relu')
+    d2 = tf.layers.conv1d(inputs=d1, filters=128, kernel_size=8, strides=2, padding='same', activation='relu')
     # 64 x (?, 2000), x2
-    r2 = tf.reshape(d2, [-1, seq_length, 64])
+    r2 = tf.reshape(d2, [-1, seq_length, 32])
     r2_unstacked = tf.unstack(r2, axis=2)
-    lstm_fw_cell = rnn.BasicLSTMCell(64, forget_bias=1.0)
-    lstm_bw_cell = rnn.BasicLSTMCell(64, forget_bias=1.0)
-    # Get LSTM Output:
-    outputs, _, _ = rnn.static_bidirectional_rnn(lstm_fw_cell, lstm_bw_cell, r2_unstacked, dtype=tf.float32)
+    lstm_fw_cell = rnn.LSTMCell(2000, forget_bias=1.0)
+    # outputs, _, _ = tf.nn.static_bidirectional_rnn(lstm_fw_cell, lstm_bw_cell, r2_unstacked, dtype=tf.float32)
+    outputs, state = rnn.static_rnn(lstm_fw_cell, r2_unstacked, dtype=tf.float32)
     lstm_out = tf.stack(outputs, axis=2)
-    lstm_out_reshape = tf.reshape(lstm_out, [-1, 64*128])
     # No activation ???
-    drop1 = tf.nn.dropout(lstm_out_reshape, keep_prob=keep_prob_)
+    drop1 = tf.nn.dropout(lstm_out, keep_prob=keep_prob_)
     bn1 = tf.layers.batch_normalization(drop1)
-    # dense1 = tf.nn.relu(tfs.fully_connect_3d(bn1, [2 * LSTM_UNITS, LSTM_UNITS], [LSTM_UNITS]))
-    dense1 = tf.nn.relu(tfs.fully_connect(bn1, [8192, 10000], [10000]))
+    dense1 = Dense(32, activation='relu')(bn1)
     # dense1 = tf.layers.dense(inputs=bn1, units=64, activation='relu', kernel_regularizer=l2_regularizer(scale=0.01))
     drop2 = tf.nn.dropout(dense1, keep_prob=keep_prob_)
     bn2 = tf.layers.batch_normalization(drop2)
-    dense2 = tf.reshape(bn2, [-1, 2000, 5])
-    # dense2 = tf.contrib.layers.fully_connected(bn2, num_classes)
+    dense2 = Dense(5)(bn2)
     softmax_out = tf.nn.softmax(dense2, name=name_output_node)
     return softmax_out
 
@@ -117,8 +113,8 @@ with tf.Session(config=config) as sess:
     tf.train.write_graph(sess.graph_def, output_folder_name, description + '.pbtxt', True)
     start_time_ms = tfs.current_time_ms()
     # Load Checkpoint if Available:
-    if os.path.isfile(checkpoint_filename):
-        saver.restore(sess, checkpoint_filename)
+    # if os.path.isfile(checkpoint_filename):
+    #     saver.restore(sess, checkpoint_filename)
 
     if TRAIN:
         # Load model and train
