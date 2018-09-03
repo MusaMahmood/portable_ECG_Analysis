@@ -23,6 +23,15 @@ def load_mat(file_path, key, shape):
     return x_array
 
 
+def maximize_output_probabilities(array):
+    array_out = np.copy(array)
+    for i in range(array.shape[0]):
+        b = np.zeros_like(array[i, :, :])
+        b[np.arange(len(array[i, :, :])), array[i, :, :].argmax(1)] = 1
+        array_out[i, :, :] = b
+    return array_out
+
+
 def load_data_v2(data_directory, x_shape, y_shape, key_x, key_y, shuffle=False, ind2vec=False):
     x_train_data = np.empty([0, *x_shape], np.float32)
     y_train_data = np.empty([0, *y_shape], np.float32)

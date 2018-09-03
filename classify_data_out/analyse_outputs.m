@@ -3,16 +3,18 @@ clr;
 % load('cnn2layerU1024v0.mat'); % complete trash
 % load('conv_seq2seq_prescal_lstmU32v0.mat');
 % load('n2ch\conv_seq2seq_prescal_lstmU32lr0.01v0.mat');
-load('n1ch\flex_normal.fixed.conv1d_seq2seq_64lr0.01ep40_v1.mat');
+% load('n1ch\flex_normal.fixed.conv1d_seq2seq_64lr0.01ep40_v1.mat');
+load('mit_ecg_annotate_gan_lr0.0002_r0\mit_ecg_annotate_gan_lr0.0002_r0.mat');
 % %{
 CH1_ONLY = size(x_val, 3) - 1; 
 PLOT = 1
 score = 0; miss = 0;
 acc = zeros(size(x_val,1), 1);
+samples = size(y_val, 1);
 
 if exist('x_val', 'var')
-    ytrue_all = vec2ind(reshape(y_val, [4998*2000,5])' );
-    ytest_all = vec2ind(reshape(y_out, [4998*2000,5])' );
+    ytrue_all = vec2ind(reshape(y_val, [samples*2000,5])' );
+    ytest_all = vec2ind(reshape(y_out, [samples*2000,5])' );
     acc = sum(ytest_all == ytrue_all)/length(ytrue_all);
     for s = 1:1:size(x_val,1)
         y_sample = squeeze(y_out(s, :, :));
@@ -21,17 +23,17 @@ if exist('x_val', 'var')
         yti = vec2ind(y_true');
         syy = ysi == yti; pct = sum(syy)/size(y_val, 2);
         fprintf('Sample #: %d  Acc: %1.3f \n', s, pct); 
-        if pct >= 0.9
+        if pct >= 0.8
             score = score + 1;
             acc(s) = 1;
         else
             miss = miss + 1;
             acc(s) = 0;
-%             PLOT=1;
+            PLOT=1;
         end
         clear b yy yt
         if PLOT
-%             PLOT = 0;
+            PLOT = 0;
             sample =squeeze(x_val(s, :, :));
             [~, yl2] = max(y_sample, [], 2);
             figure(2); subplot(4, 1, 1); plot(sample); title('Data');

@@ -27,7 +27,7 @@ import tf_shared_k as tfs
 # Setup:
 TRAIN = False  # TRAIN ANYWAY FOR # epochs, or just evaluate
 TEST = True
-SAVE_PREDICTIONS = False
+SAVE_PREDICTIONS = True
 EXPORT_OPT_BINARY = True
 batch_size = 128
 epochs = 50
@@ -39,7 +39,7 @@ lambda_id = 0.1 * lambda_cycle  # Identity loss
 description = 'mit_ecg_annotate_gan_lr' + str(learn_rate) + '_r0'
 keras_model_name = description + '.h5'
 model_dir = "model_exports/" + description + '/'
-output_folder = 'outputs/' + description + '/'
+output_folder = 'classify_data_out/' + description + '/'
 seq_length = 2000
 input_length = seq_length
 x_shape = [seq_length, 1]
@@ -118,7 +118,8 @@ with tf.device('/gpu:0'):
     if SAVE_PREDICTIONS:
         # predict
         yy_probabilities = model.predict(x_test, batch_size=batch_size)
-        data_dict = {'x_val': x_test, 'y_val': y_test, 'y_prob': yy_probabilities}
+        yy_predicted = tfs.maximize_output_probabilities(yy_probabilities)
+        data_dict = {'x_val': x_test, 'y_val': y_test, 'y_prob': yy_probabilities, 'y_out': yy_predicted}
         savemat(tfs.prep_dir(output_folder) + description + '.mat', mdict=data_dict)
 
     # TODO: Save hidden Layers
