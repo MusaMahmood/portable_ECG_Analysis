@@ -1,20 +1,17 @@
 clr;
-% load('seq2seq_only_prescal_lstmU32v3.mat'); % decent
-% load('cnn2layerU1024v0.mat'); % complete trash
-% load('conv_seq2seq_prescal_lstmU32v0.mat');
-% load('n2ch\conv_seq2seq_prescal_lstmU32lr0.01v0.mat');
-% load('n1ch\flex_normal.fixed.conv1d_seq2seq_64lr0.01ep40_v1.mat');
-load('mit_ecg_annotate_gan_lr0.0002_r0\mit_ecg_annotate_gan_lr0.0002_r0.mat');
+% load('mit_ecg_annotate_gan_lr0.0002_r0\mit_ecg_annotate_gan_lr0.0002_r0.mat');
+load('ptb_ecg_annotate_lr0.0002_r0\ptb_ecg_annotate_lr0.0002_r0.mat');
 % %{
 CH1_ONLY = size(x_val, 3) - 1; 
 PLOT = 1
 score = 0; miss = 0;
 acc = zeros(size(x_val,1), 1);
 samples = size(y_val, 1);
+number_classes = size(y_val, 3);
 
 if exist('x_val', 'var')
-    ytrue_all = vec2ind(reshape(y_val, [samples*2000,5])' );
-    ytest_all = vec2ind(reshape(y_out, [samples*2000,5])' );
+    ytrue_all = vec2ind(reshape(y_val, [samples*2000,number_classes])' );
+    ytest_all = vec2ind(reshape(y_out, [samples*2000,number_classes])' );
     acc = sum(ytest_all == ytrue_all)/length(ytrue_all);
     for s = 1:1:size(x_val,1)
         y_sample = squeeze(y_out(s, :, :));
@@ -48,8 +45,8 @@ if exist('x_val', 'var')
     fprintf('Correct: %d, Miss %d \n', score, miss); 
 end
 s = size(y_val);
-y_true = reshape(y_val, [s(1)*s(2), 5]);
-y_pred = reshape(y_out, [s(1)*s(2), 5]);
+y_true = reshape(y_val, [s(1)*s(2), number_classes]);
+y_pred = reshape(y_out, [s(1)*s(2), number_classes]);
 sum(y_true)
 sum(y_pred)
 y_true = vec2ind(y_true');

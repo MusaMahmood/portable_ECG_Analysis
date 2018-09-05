@@ -20,25 +20,35 @@ from sklearn.model_selection import train_test_split
 import tf_shared_k as tfs
 
 # Sources: (Ctrl-LMB in Pycharm)
-# Instance Norm: https://arxiv.org/abs/1701.02096
-# Cycle GAN: https://arxiv.org/abs/1703.10593
-# GAN (orig paper): http://papers.nips.cc/paper/5423-generative-adversarial-nets.pdf
+# Instance Normalization: https://arxiv.org/abs/1701.02096
 
 # Setup:
-TRAIN = False  # TRAIN ANYWAY FOR # epochs, or just evaluate
+TRAIN = True  # TRAIN ANYWAY FOR # epochs, or just evaluate
 TEST = True
 SAVE_PREDICTIONS = True
+SAVE_HIDDEN_LAYERS = False
 EXPORT_OPT_BINARY = True
+
+DATASET = 'mit'
+
 batch_size = 128
 epochs = 50
+
 num_channels = 1
-num_classes = 5
+if DATASET == 'mit':
+    num_classes = 5
+elif DATASET == 'ptb':
+    num_classes = 2
+
 learn_rate = 0.0002
 lambda_cycle = 10.0  # Cycle-consistency loss
 lambda_id = 0.1 * lambda_cycle  # Identity loss
-description = 'mit_ecg_annotate_gan_lr' + str(learn_rate) + '_r0'
+
+description = DATASET + '_ecg_annotate_lr' + str(learn_rate) + '_r0'
 keras_model_name = description + '.h5'
-model_dir = "model_exports/" + description + '/'
+model_dir = tfs.prep_dir('model_exports/')
+keras_file_location = model_dir + keras_model_name
+
 output_folder = 'classify_data_out/' + description + '/'
 seq_length = 2000
 input_length = seq_length
@@ -49,10 +59,15 @@ y_shape = [seq_length, num_classes]
 start_time_ms = tfs.current_time_ms()
 
 # Load Data:
-x_tt, y_tt = tfs.load_data_v2('data/extended_5_class/mit_bih_tlabeled_w8s_fixed_all', [seq_length, 2], y_shape,
-                              'relevant_data', 'Y')
+if DATASET == 'mit':  # MIT-BIH Data set:
+    x_tt, y_tt = tfs.load_data_v2('data/extended_5_class/mit_bih_tlabeled_w8s_fixed_all', [seq_length, 2], y_shape,
+                                  'relevant_data', 'Y')
+elif DATASET == 'ptb':  # PTB Data set:
+    x_tt, y_tt = tfs.load_data_v2('data/ptb_ecg_1ch_temporal_labels/lead_v2_all', x_shape, y_shape, 'X', 'Y')
+
 if num_channels < 2:
     x_tt = np.reshape(x_tt[:, :, 0], [-1, seq_length, 1])
+
 x_train, x_test, y_train, y_test = train_test_split(x_tt, y_tt, train_size=0.75, random_state=1)
 
 
@@ -90,18 +105,24 @@ def build_annotator(input_channels=1, output_channels=1):
     return Model(input_samples, output_samples)
 
 
-tf_backend.set_session(tfs.get_session(0.9))
+tf_backend.set_session(tfs.get_session(0.75))
 with tf.device('/gpu:0'):
     if TRAIN:
-        model = build_annotator(input_channels=1, output_channels=num_classes)
+        if os.path.isfile(keras_file_location):
+            model = load_model(keras_file_location)
+        else:
+            model = build_annotator(input_channels=num_channels, output_channels=num_classes)
+
+        print(model.summary())
+
         adam = Adam(lr=learn_rate, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
         model.compile(loss='categorical_crossentropy', optimizer=adam, metrics=['accuracy'])
         model.fit(x_train, y_train, batch_size=batch_size, epochs=epochs, verbose=1)
-        model.save(keras_model_name)
+        model.save(keras_file_location)
 
-    if os.path.isfile(keras_model_name):
+    if os.path.isfile(keras_file_location):
         if not TRAIN:
-            model = load_model(keras_model_name)
+            model = load_model(keras_file_location)
             print(model.summary())
             if TEST:
                 score, acc = model.evaluate(x_test, y_test, batch_size=128, verbose=1)
@@ -127,4 +148,5 @@ with tf.device('/gpu:0'):
     print('Elapsed Time (min): ', (tfs.current_time_ms() - start_time_ms) / 60000)
 
 if EXPORT_OPT_BINARY:
-    tfs.export_model_keras(keras_model_name, export_dir=tfs.prep_dir("graph"), model_name=description, sequential=False)
+    tfs.export_model_keras(keras_file_location, export_dir=tfs.prep_dir("graph"),
+                           model_name=description, sequential=False)
