@@ -20,11 +20,15 @@ from sklearn.model_selection import train_test_split
 import tf_shared as tfs
 
 # Setup:
-TRAIN = False
+TRAIN = True
 TEST = True
 SAVE_HIDDEN = False
 SAVE_PREDICTIONS = False
-CUSTOM_EVALUATION = True
+CUSTOM_EVALUATION = False
+SAVE_ALT_MODEL_CPU = True
+EXPORT_OPT_BINARY = True
+VERSION_NUMBER = 2
+
 epochs = 40
 num_channels = 1
 num_classes = 5
@@ -34,8 +38,10 @@ version_num = 0
 LSTM_UNITS = 64
 learn_rate = 0.01
 description = 'normal_2cnn_fixed.conv1d_seq2seq_' + str(LSTM_UNITS) + 'lr' + str(learn_rate) + 'ep' + str(
-    epochs) + '_v1'
+    epochs) + '_v' + str(VERSION_NUMBER)
 keras_model_name = description + '.h5'
+if SAVE_ALT_MODEL_CPU:
+    keras_model_name = 'alt_' + keras_model_name
 file_name = description
 seq_length = 2000
 if num_channels < 2:
@@ -50,7 +56,7 @@ y_shape = [seq_length, num_classes]
 start_time_ms = tfs.current_time_ms()
 
 # Import Data:
-x_tt, y_tt = tfs.load_data_v2('data/extended_5_class/mit_bih_tlabeled_w8s_fixed', [seq_length, 2], y_shape,
+x_tt, y_tt = tfs.load_data_v2('data/extended_5_class/mit_bih_tlabeled_w8s_fixed_all', [seq_length, 2], y_shape,
                               'relevant_data', 'Y')
 if num_channels < 2:
     x_tt = np.reshape(x_tt[:, :, 0], [-1, seq_length, 1])
@@ -103,21 +109,33 @@ batch_size = 256
 
 tf_backend.set_session(tfs.get_session(0.9))
 with tf.device('/gpu:0'):
-    # k_model_untrained_no_cuda = get_model_alt()
-    # k_model_untrained_no_cuda.save('alt_' + keras_model_name)
-
     if TRAIN:
-        model = get_model_conv1d_bilstm()
-        model.fit(x_train, y_train, batch_size=batch_size, epochs=epochs, verbose=1)  # train the model
+        if SAVE_ALT_MODEL_CPU:
+            model = get_model_alt()
+            print('Model Summary: \n', model.summary())
+            adam = optimizers.adam(lr=learn_rate, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+            model.compile(loss='categorical_crossentropy', optimizer=adam, metrics=['accuracy'])
+            model.fit(x_train, y_train, batch_size=batch_size, epochs=epochs, verbose=1)
+        else:
+            model = get_model_conv1d_bilstm()
+            model.fit(x_train, y_train, batch_size=batch_size, epochs=epochs, verbose=1)  # train the model
         model.save(keras_model_name)
 
     if os.path.isfile(keras_model_name):
-        model = load_model(keras_model_name)
         if not TRAIN:
+            model = load_model(keras_model_name)
             print(model.summary())
-        if TEST:
-            score, acc = model.evaluate(x_test, y_test, batch_size=128, verbose=1)
-            print('Test score: {} , Test accuracy: {}'.format(score, acc))
+            if TEST:
+                score, acc = model.evaluate(x_test, y_test, batch_size=128, verbose=1)
+                print('Test score: {} , Test accuracy: {}'.format(score, acc))
+        else:
+            if TEST:
+                score, acc = model.evaluate(x_test, y_test, batch_size=128, verbose=1)
+                print('Test score: {} , Test accuracy: {}'.format(score, acc))
+    else:
+        print("Model Not Found!")
+        if not TRAIN:
+            exit(-1)
 
     if SAVE_PREDICTIONS:
         # predict
@@ -149,9 +167,10 @@ with tf.device('/gpu:0'):
         yy_predicted = tfs.maximize_output_probabilities(yy_probabilities)
         data_dict = {'x_val': ptb_sampling, 'y_prob': yy_probabilities, 'y_out': yy_predicted}
         savemat(tfs.prep_dir(output_folder + 'ptb/') + 'ptb_sample_data_probs.mat', mdict=data_dict)
-
     print('Elapsed Time (ms): ', tfs.current_time_ms() - start_time_ms)
     print('Elapsed Time (min): ', (tfs.current_time_ms() - start_time_ms) / 60000)
 
+
 # TODO: FIX:
-# model = tfs.export_model_keras('alt_' + keras_model_name, export_dir=tfs.prep_dir("graph"), model_name=description)
+if EXPORT_OPT_BINARY:
+    tfs.export_model_keras(keras_model_name, export_dir=tfs.prep_dir("graph"), model_name=description, sequential=False)

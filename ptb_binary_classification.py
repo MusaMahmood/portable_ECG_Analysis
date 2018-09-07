@@ -51,7 +51,7 @@ else:
     y_shape = [num_classes]
 
 # Import Data:
-x_tt, y_tt = tfs.load_data_v2('data/ptb_ecg_1ch_half_overlap_labeled/lead_v2_all', x_shape, y_shape, 'X', 'Y',
+x_tt, y_tt = tfs.load_data_v2('data/ptb_ecg_1ch_single_labels/lead_v2_all', x_shape, y_shape, 'X', 'Y',
                               ind2vec=IND_TO_VEC)
 
 if num_channels < 2:

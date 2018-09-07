@@ -12,7 +12,7 @@ import numpy as np
 import tensorflow as tf
 from keras import optimizers, regularizers
 from keras.backend import tensorflow_backend as tf_backend
-from keras.layers import Bidirectional, CuDNNLSTM
+from keras.layers import Bidirectional, CuDNNLSTM, LSTM
 from keras.layers import Dense, Dropout, Reshape
 from keras.layers.normalization import BatchNormalization
 from keras.models import Sequential, load_model
@@ -22,9 +22,9 @@ from sklearn.model_selection import train_test_split
 import tf_shared as tfs
 
 # Setup:
-TRAIN = True
-SAVE_HIDDEN = True
-epochs = 40
+TRAIN = False
+SAVE_HIDDEN = False
+epochs = 80
 num_channels = 2
 num_classes = 2
 model_dir = "model_exports"
@@ -32,7 +32,7 @@ output_folder = 'classify_data_out/rat_n' + str(num_channels) + 'ch/'
 version_num = 0
 LSTM_UNITS = 64
 learn_rate = 0.01
-description = 'rat_2cnn.c1d_s2s_' + str(LSTM_UNITS) + 'lr' + str(learn_rate) + 'ep' + str(epochs) + '_v1'
+description = 'rat_2cnn.c1d_lstm_' + str(LSTM_UNITS) + 'lr' + str(learn_rate) + 'ep' + str(epochs) + '_v1'
 keras_model_name = description + '.h5'
 file_name = description
 seq_length = 2000
@@ -54,13 +54,16 @@ if num_channels < 2:
 x_train, x_test, y_train, y_test = train_test_split(x_tt, y_tt, train_size=0.75, random_state=1)
 
 
-def get_model_conv1d_bilstm():
+def get_model_conv1d_bilstm(export=False):
     k_model = Sequential()
     k_model.add(Reshape((seq_length, num_channels), input_shape=input_shape))
     k_model.add(k.layers.Conv1D(128, 8, strides=2, padding='same', activation='relu'))
     k_model.add(k.layers.Conv1D(256, 8, strides=2, padding='same', activation='relu'))
     k_model.add(Reshape(target_shape=(seq_length, 64)))
-    k_model.add(Bidirectional(CuDNNLSTM(LSTM_UNITS, return_sequences=True)))
+    if export:
+        k_model.add(LSTM(LSTM_UNITS, return_sequences=True))  # TODO: Removed Bidirectional
+    else:
+        k_model.add(CuDNNLSTM(LSTM_UNITS, return_sequences=True))  # Removed Bidirectional
     k_model.add(Dropout(0.2))
     k_model.add(BatchNormalization())
     k_model.add(Dense(64, activation='relu', kernel_regularizer=regularizers.l2(l=0.01)))
@@ -79,17 +82,26 @@ batch_size = 256
 tf_backend.set_session(tfs.get_session(0.9))
 with tf.device('/gpu:0'):
     start_time_ms = tfs.current_time_ms()
-    if TRAIN:
-        model = get_model_conv1d_bilstm()
-        model.fit(x_train, y_train, batch_size=batch_size, epochs=epochs, verbose=1)  # train the model
-        model.save(keras_model_name)
-
     if os.path.isfile(keras_model_name):
         model = load_model(keras_model_name)
-        if not TRAIN:
-            print(model.summary())
-        score, acc = model.evaluate(x_test, y_test, batch_size=128, verbose=1)
-        print('Test score: {} , Test accuracy: {}'.format(score, acc))
+        print(model.summary())
+        if TRAIN:
+            model.fit(x_train, y_train, batch_size=batch_size, epochs=epochs, verbose=1)
+            model.save(keras_model_name)
+    else:
+        if TRAIN:
+            model = get_model_conv1d_bilstm()
+            model.fit(x_train, y_train, batch_size=batch_size, epochs=epochs, verbose=1)
+            model.save(keras_model_name)
+        else:
+            exit(-1)
+
+    score, acc = model.evaluate(x_test, y_test, batch_size=128, verbose=1)
+    print('Test score: {} , Test accuracy: {}'.format(score, acc))
+
+    # Save blank, untrained model.
+    # k_model_untrained_no_cuda = get_model_conv1d_bilstm(export=True)
+    # k_model_untrained_no_cuda.save('alt_' + keras_model_name)
 
     # predict
     yy_probabilities = model.predict(x_test)
@@ -99,7 +111,7 @@ with tf.device('/gpu:0'):
     # https://keras.io/getting-started/faq/#how-can-i-obtain-the-output-of-an-intermediate-layer
 
     if SAVE_HIDDEN:
-        layers_of_interest = ['conv1d_1', 'conv1d_2', 'reshape_2', 'bidirectional_1', 'dense_1', 'dense_2']
+        layers_of_interest = ['conv1d_1', 'conv1d_2', 'reshape_2', 'lstm_1', 'dense_1', 'dense_2']
         np.random.seed(0)
         rand_indices = np.random.randint(0, x_test.shape[0], 250)
         print('Saving hidden layers: ', layers_of_interest)
@@ -112,7 +124,7 @@ with tf.device('/gpu:0'):
 
     data_dict = {'x_val': x_test, 'y_val': y_test, 'y_out': yy_predicted, 'y_prob': yy_probabilities}
     savemat(tfs.prep_dir(output_folder) + file_name + '.mat', mdict=data_dict)
-
-model = tfs.export_model_keras(keras_model_name, export_dir=tfs.prep_dir("graph"), model_name=description)
+tf_backend.set_learning_phase(0)
+tfs.export_model_keras(keras_model_name, tfs.prep_dir("graph_rat"), model_name=description)
 
 # Results:
