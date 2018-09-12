@@ -41,8 +41,6 @@ elif DATASET == 'ptb':
     num_classes = 2
 
 learn_rate = 0.0002
-lambda_cycle = 10.0  # Cycle-consistency loss
-lambda_id = 0.1 * lambda_cycle  # Identity loss
 
 description = DATASET + '_ecg_annotate_lr' + str(learn_rate) + '_r0'
 keras_model_name = description + '.h5'

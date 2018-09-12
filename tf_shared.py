@@ -37,7 +37,23 @@ def vec2ind(x, dimensions=2):
         print('Not yet supported')
 
 
-def ind2vec(x):
+def ind2vec(x, dimensions=3, number_classes=None):
+    if dimensions == 2:
+        print('Not yet supported')
+    elif dimensions == 3:
+        samples = x.shape[0]
+        seq_len = x.shape[1]
+        if np.min(x) == 1:
+            x = np.subtract(x, 1)
+        if number_classes is None:
+            number_classes = int(np.max(x) + 1)
+        new_vec_array = np.zeros([samples, seq_len, number_classes], dtype=np.int32)
+        for i in range(0, samples):
+            for s in range(0, seq_len):
+                new_vec_array[i, s, int(x[i, s, 0])] = 1
+        return new_vec_array
+    else:
+        print('Not yet supported')
     return 0
 
 
@@ -355,6 +371,8 @@ def load_data_v2(data_directory, x_shape, y_shape, key_x, key_y, shuffle=False, 
         y_array = loadmat(f).get(key_y)
         if x_shape[1] == 1:
             x_array = np.reshape(x_array, [x_array.shape[0], *x_shape])
+        if y_shape[1] == 1:
+            y_array = np.reshape(y_array, [y_array.shape[0], *y_shape])
         x_train_data = np.concatenate((x_train_data, x_array), axis=0)
         y_train_data = np.concatenate((y_train_data, y_array), axis=0)
     if shuffle:
