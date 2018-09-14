@@ -8,6 +8,7 @@ import tensorflow as tf
 from keras import backend as K
 from keras.models import Sequential, load_model, Model
 from scipy.io import loadmat
+from sklearn.metrics import confusion_matrix
 from tensorflow.python.tools import freeze_graph
 from tensorflow.python.tools import optimize_for_inference_lib
 
@@ -157,3 +158,13 @@ def print_graph_nodes(filename):
     print([n for n in g.node if n.name.find('keras_learning_phase') != -1])
     print("======================================================")
     print()
+
+
+def print_confusion_matrix(y_prob, y_true):
+    y_prob_maximized = maximize_output_probabilities(y_prob)
+    y_prob_shape = y_prob.shape
+    y_prob_r = np.argmax(np.reshape(y_prob_maximized, [y_prob_shape[0] * y_prob_shape[1], y_prob_shape[2]]), axis=1)
+    y_test_shape = y_true.shape
+    y_test_r = np.argmax(np.reshape(y_true, [y_test_shape[1] * y_test_shape[0], y_test_shape[2]]), axis=1)
+    confusion = confusion_matrix(y_test_r, y_prob_r)
+    print("Confusion Matrix: \n", confusion)

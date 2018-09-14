@@ -29,12 +29,14 @@ SAVE_PREDICTIONS = True
 SAVE_HIDDEN_LAYERS = False
 EXPORT_OPT_BINARY = True
 
-DATASET = 'mit'
+DATASET = 'incart'
 
-batch_size = 128
+batch_size = 256
 epochs = 50
 
 num_channels = 1
+num_classes = 5
+
 if DATASET == 'mit' or DATASET == 'incart':
     num_classes = 5
 elif DATASET == 'ptb':
@@ -42,7 +44,7 @@ elif DATASET == 'ptb':
 
 learn_rate = 0.0002
 
-description = DATASET + '_ecg_annotate_lr' + str(learn_rate) + '_r0'
+description = DATASET + '_annotate'
 keras_model_name = description + '.h5'
 model_dir = tfs.prep_dir('model_exports/')
 keras_file_location = model_dir + keras_model_name
@@ -65,7 +67,10 @@ if DATASET == 'mit':  # MIT-BIH Data set:
 elif DATASET == 'ptb':  # PTB Data set:
     x_tt, y_tt = tfs.load_data_v2('data/ptb_ecg_1ch_temporal_labels/lead_v2_all', x_shape, y_shape, 'X', 'Y')
 
-if num_channels < 2:
+elif DATASET == 'incart':
+    x_tt, y_tt = tfs.load_data_v2('data/incartdb_v1_all', [seq_length, 1], [seq_length, 5], 'X', 'Y')
+
+if num_channels < 2 and not DATASET == 'incart':
     x_tt = np.reshape(x_tt[:, :, 0], [-1, seq_length, 1])
 
 x_train, x_test, y_train, y_test = train_test_split(x_tt, y_tt, train_size=0.75, random_state=1)
@@ -105,6 +110,7 @@ def build_annotator(input_channels=1, output_channels=1):
     return Model(input_samples, output_samples)
 
 
+model = []
 tf_backend.set_session(tfs.get_session(0.75))
 with tf.device('/gpu:0'):
     if TRAIN:
@@ -112,11 +118,11 @@ with tf.device('/gpu:0'):
             model = load_model(keras_file_location)
         else:
             model = build_annotator(input_channels=num_channels, output_channels=num_classes)
+            adam = Adam(lr=learn_rate, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+            model.compile(loss='categorical_crossentropy', optimizer=adam, metrics=['accuracy'])
 
         print(model.summary())
 
-        adam = Adam(lr=learn_rate, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
-        model.compile(loss='categorical_crossentropy', optimizer=adam, metrics=['accuracy'])
         model.fit(x_train, y_train, batch_size=batch_size, epochs=epochs, verbose=1)
         model.save(keras_file_location)
 
@@ -127,10 +133,17 @@ with tf.device('/gpu:0'):
             if TEST:
                 score, acc = model.evaluate(x_test, y_test, batch_size=128, verbose=1)
                 print('Test score: {} , Test accuracy: {}'.format(score, acc))
+                y_prob = model.predict(x_test)
+                tfs.print_confusion_matrix(y_prob, y_test)
         else:
-            if TEST:
+            if TEST and model is not None:
                 score, acc = model.evaluate(x_test, y_test, batch_size=128, verbose=1)
                 print('Test score: {} , Test accuracy: {}'.format(score, acc))
+                y_prob = model.predict(x_test)
+                tfs.print_confusion_matrix(y_prob, y_test)
+            else:
+                print('This should never happen: model does not exist')
+                exit(-1)
     else:
         print("Model Not Found!")
         if not TRAIN:
