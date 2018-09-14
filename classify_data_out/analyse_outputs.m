@@ -1,6 +1,7 @@
 clr;
 % load('mit_ecg_annotate_gan_lr0.0002_r0\mit_ecg_annotate_gan_lr0.0002_r0.mat');
-load('ptb_ecg_annotate_lr0.0002_r0\ptb_ecg_annotate_lr0.0002_r0.mat');
+% load('ptb_ecg_annotate_lr0.0002_r0\ptb_ecg_annotate_lr0.0002_r0.mat');
+load('incart_annotate\incart_annotate.mat');
 % %{
 CH1_ONLY = size(x_val, 3) - 1; 
 PLOT = 1
@@ -31,6 +32,7 @@ if exist('x_val', 'var')
         clear b yy yt
         if PLOT
             PLOT = 0;
+            
             sample =squeeze(x_val(s, :, :));
             [~, yl2] = max(y_sample, [], 2);
             figure(2); subplot(4, 1, 1); plot(sample); title('Data');

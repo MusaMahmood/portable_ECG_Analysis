@@ -25,8 +25,9 @@ import tf_shared_k as tfs
 # Setup:
 TRAIN = False  # TRAIN ANYWAY FOR # epochs, or just evaluate
 TEST = True
-SAVE_PREDICTIONS = False
-SAVE_HIDDEN = True
+SAVE_PREDICTIONS = True
+SAVE_PTB_PREDICTIONS = True
+SAVE_HIDDEN = False
 EXPORT_OPT_BINARY = False
 
 DATASET = 'incart'
@@ -74,6 +75,9 @@ if num_channels < 2 and not DATASET == 'incart':
     x_tt = np.reshape(x_tt[:, :, 0], [-1, seq_length, 1])
 
 x_train, x_test, y_train, y_test = train_test_split(x_tt, y_tt, train_size=0.75, random_state=1)
+
+# Load Supplementary PTB Dataset for Validation (2)
+x_test_ptb, y_test_ptb = tfs.load_data_v2('data/ptb_ecg_1ch_temporal_labels/lead_v2_all', x_shape, [seq_length, 2], 'X', 'Y')
 
 
 def build_annotator(input_channels=1, output_channels=1):
@@ -155,6 +159,11 @@ with tf.device('/gpu:0'):
         yy_predicted = tfs.maximize_output_probabilities(yy_probabilities)
         data_dict = {'x_val': x_test, 'y_val': y_test, 'y_prob': yy_probabilities, 'y_out': yy_predicted}
         savemat(tfs.prep_dir(output_folder) + description + '.mat', mdict=data_dict)
+        if SAVE_PTB_PREDICTIONS:
+            yy_probabilities = model.predict(x_test_ptb, batch_size=batch_size)
+            yy_predicted = tfs.maximize_output_probabilities(yy_probabilities)
+            data_dict = {'x_val': x_test_ptb, 'y_val': y_test_ptb, 'y_prob': yy_probabilities, 'y_out': yy_predicted}
+            savemat(tfs.prep_dir(output_folder) + 'incartv2_ptb_predictions' + '.mat', mdict=data_dict)
 
     if SAVE_HIDDEN:
         layers_of_interest = ['conv1d_1', 'conv1d_2', 'conv1d_3', 'conv1d_4', 'conv1d_5', 'concatenate_1', 'conv1d_6',
