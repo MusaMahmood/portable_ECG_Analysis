@@ -1,6 +1,6 @@
 %% analyze ptb outputs:
 clr;
-load('n1ch\ptb\ptb_sample_data_probs.mat');
+load('incart_annotate\incart_annotate.mat');
 if exist('x_val', 'var')
     samples = size(x_val, 1);
     figure(1);

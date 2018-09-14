@@ -7,7 +7,7 @@ import pandas as pd
 import tensorflow as tf
 from keras import backend as K
 from keras.models import Sequential, load_model, Model
-from scipy.io import loadmat
+from scipy.io import loadmat, savemat
 from sklearn.metrics import confusion_matrix
 from tensorflow.python.tools import freeze_graph
 from tensorflow.python.tools import optimize_for_inference_lib
@@ -168,3 +168,14 @@ def print_confusion_matrix(y_prob, y_true):
     y_test_r = np.argmax(np.reshape(y_true, [y_test_shape[1] * y_test_shape[0], y_test_shape[2]]), axis=1)
     confusion = confusion_matrix(y_test_r, y_prob_r)
     print("Confusion Matrix: \n", confusion)
+
+
+def get_keras_layers(model, layers_to_extract, data, y_true, output_dir, fname='hidden_all_outputs.mat'):
+    d = {'inputs': data, 'y_true': y_true}
+    for l in range(0, len(layers_to_extract)):
+        layer_name = layers_to_extract[l]
+        layer = model.get_layer(name=layer_name)
+        intermediate_layer_model = Model(inputs=model.input, outputs=layer.output)
+        d[layer_name] = intermediate_layer_model.predict(data)
+    savemat(prep_dir(output_dir) + fname, mdict=d)
+    print('Saving hidden layers: ', layers_to_extract, ' to: ', output_dir + fname)

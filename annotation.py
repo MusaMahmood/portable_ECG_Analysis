@@ -23,11 +23,11 @@ import tf_shared_k as tfs
 # Instance Normalization: https://arxiv.org/abs/1701.02096
 
 # Setup:
-TRAIN = True  # TRAIN ANYWAY FOR # epochs, or just evaluate
+TRAIN = False  # TRAIN ANYWAY FOR # epochs, or just evaluate
 TEST = True
-SAVE_PREDICTIONS = True
-SAVE_HIDDEN_LAYERS = False
-EXPORT_OPT_BINARY = True
+SAVE_PREDICTIONS = False
+SAVE_HIDDEN = True
+EXPORT_OPT_BINARY = False
 
 DATASET = 'incart'
 
@@ -155,6 +155,16 @@ with tf.device('/gpu:0'):
         yy_predicted = tfs.maximize_output_probabilities(yy_probabilities)
         data_dict = {'x_val': x_test, 'y_val': y_test, 'y_prob': yy_probabilities, 'y_out': yy_predicted}
         savemat(tfs.prep_dir(output_folder) + description + '.mat', mdict=data_dict)
+
+    if SAVE_HIDDEN:
+        layers_of_interest = ['conv1d_1', 'conv1d_2', 'conv1d_3', 'conv1d_4', 'conv1d_5', 'concatenate_1', 'conv1d_6',
+                              'concatenate_2', 'conv1d_7', 'concatenate_3', 'conv1d_8']
+        np.random.seed(0)
+        rand_indices = np.random.randint(0, x_test.shape[0], 250)
+        print('Saving hidden layers: ', layers_of_interest)
+        tfs.get_keras_layers(model, layers_of_interest, x_test[rand_indices], y_test[rand_indices],
+                             output_dir=tfs.prep_dir('classify_data_out/hidden_layers/'),
+                             fname='h_' + description + '.mat')
 
     # TODO: Save hidden Layers
     print('Elapsed Time (ms): ', tfs.current_time_ms() - start_time_ms)
