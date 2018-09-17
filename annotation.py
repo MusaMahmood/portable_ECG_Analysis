@@ -23,11 +23,11 @@ import tf_shared_k as tfs
 # Instance Normalization: https://arxiv.org/abs/1701.02096
 
 # Setup:
-TRAIN = True  # TRAIN ANYWAY FOR # epochs, or just evaluate
+TRAIN = False  # TRAIN ANYWAY FOR # epochs, or just evaluate
 TEST = True
 SAVE_PREDICTIONS = True
 SAVE_HIDDEN = False
-EXPORT_OPT_BINARY = True
+EXPORT_OPT_BINARY = False
 
 DATASET = 'ptb6'
 
@@ -38,7 +38,7 @@ num_channels = 1
 num_classes = 5
 data_directory = ''
 
-if DATASET == 'mit' or DATASET == 'incart':
+if DATASET == 'mit':
     num_classes = 5
     num_channels = 2
     data_directory = 'data/extended_5_class/mit_bih_tlabeled_w8s_fixed_all'
@@ -69,6 +69,10 @@ start_time_ms = tfs.current_time_ms()
 
 # Load Data:
 x_tt, y_tt = tfs.load_data_v2(data_directory, x_shape, y_shape, 'X', 'Y')
+
+# Additional Dataset:
+
+x_i, y_i = tfs.load_data_v2('data/incartdb_v1_all', x_shape, [2000, 5], 'X', 'Y')
 
 if num_channels < 2 and not DATASET == 'incart':
     x_tt = np.reshape(x_tt[:, :, 0], [-1, seq_length, 1])
@@ -106,7 +110,7 @@ def build_annotator(input_channels=1, output_channels=1):
     u2 = deconv_layer(u1, d2, 64, f_size=8)
     u3 = deconv_layer(u2, d1, 32, f_size=8)
     u4 = UpSampling1D(size=2)(u3)
-    output_samples = Conv1D(output_channels, kernel_size=8, strides=1, padding='same', activation='softmax')(u4)  #
+    output_samples = Conv1D(output_channels, kernel_size=8, strides=1, padding='same', activation='softmax')(u4)
     return Model(input_samples, output_samples)
 
 
@@ -155,6 +159,11 @@ with tf.device('/gpu:0'):
         yy_predicted = tfs.maximize_output_probabilities(yy_probabilities)
         data_dict = {'x_val': x_test, 'y_val': y_test, 'y_prob': yy_probabilities, 'y_out': yy_predicted}
         savemat(tfs.prep_dir(output_folder) + description + '.mat', mdict=data_dict)
+
+        yy_probabilities = model.predict(x_i, batch_size=batch_size)
+        yy_predicted = tfs.maximize_output_probabilities(yy_probabilities)
+        data_dict = {'x_val': x_i, 'y_val': y_i, 'y_prob': yy_probabilities, 'y_out': yy_predicted}
+        savemat(tfs.prep_dir(output_folder) + 'incart_ptbModel' + '.mat', mdict=data_dict)
 
     if SAVE_HIDDEN:
         layers_of_interest = ['conv1d_1', 'conv1d_2', 'conv1d_3', 'conv1d_4', 'conv1d_5', 'concatenate_1', 'conv1d_6',
