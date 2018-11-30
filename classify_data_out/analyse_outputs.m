@@ -1,17 +1,19 @@
-clr;
+% clr;
 % load('mit_ecg_annotate_gan_lr0.0002_r0\mit_ecg_annotate_gan_lr0.0002_r0.mat');
 % load('ptb_ecg_annotate_lr0.0002_r0\ptb_ecg_annotate_lr0.0002_r0.mat');
-load('incart_annotate\incart_annotate.mat');
+% load('incart_annotate\incart_annotate.mat');
+% load('ptb6_annotate\ptb6_annotate.mat');
+load('ptb6_annotate\incart_ptbModel.mat');
 % %{
 CH1_ONLY = size(x_val, 3) - 1; 
-PLOT = 1
+PLOT = 0
 score = 0; miss = 0;
 acc = zeros(size(x_val,1), 1);
 samples = size(y_val, 1);
-number_classes = size(y_val, 3);
+number_classes = size(y_prob, 3);
 
 if exist('x_val', 'var')
-    ytrue_all = vec2ind(reshape(y_val, [samples*2000,number_classes])' );
+    ytrue_all = vec2ind(reshape(y_val, [samples*2000,5])' );
     ytest_all = vec2ind(reshape(y_out, [samples*2000,number_classes])' );
     acc = sum(ytest_all == ytrue_all)/length(ytrue_all);
     for s = 1:1:size(x_val,1)
@@ -27,11 +29,11 @@ if exist('x_val', 'var')
         else
             miss = miss + 1;
             acc(s) = 0;
-            PLOT=1;
+%             PLOT=1;
         end
         clear b yy yt
         if PLOT
-            PLOT = 0;
+%             PLOT = 0;
             
             sample =squeeze(x_val(s, :, :));
             [~, yl2] = max(y_sample, [], 2);
@@ -47,7 +49,7 @@ if exist('x_val', 'var')
     fprintf('Correct: %d, Miss %d \n', score, miss); 
 end
 s = size(y_val);
-y_true = reshape(y_val, [s(1)*s(2), number_classes]);
+y_true = reshape(y_val, [s(1)*s(2), 5]);
 y_pred = reshape(y_out, [s(1)*s(2), number_classes]);
 sum(y_true)
 sum(y_pred)

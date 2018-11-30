@@ -1,6 +1,7 @@
 %% INCART Dataset - Using transformative annotation method:
 % Load Data:
 load('hidden_layers\h_incart_annotate.mat');
+% load('hidden_layers\h_ptb6_annotate.mat');
 l_titles = {'input', 'conv1d_1', 'conv1d_2', 'conv1d_3', 'conv1d_4', 'conv1d_5', 'concatenate_1', 'conv1d_6', 'concatenate_2', 'conv1d_7', 'concatenate_3', 'conv1d_8', 'y_true'};
 layers = {inputs, conv1d_1, conv1d_2, conv1d_3, conv1d_4, conv1d_5, concatenate_1, conv1d_6, concatenate_2, conv1d_7, concatenate_3, conv1d_8, y_true};
 clear conv1d_1 conv1d_2 conv1d_3 conv1d_4 conv1d_5 concatenate_1 conv1d_6 concatenate_2 conv1d_7 concatenate_3 conv1d_8 y_true

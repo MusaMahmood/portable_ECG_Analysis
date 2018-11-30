@@ -16,11 +16,12 @@ from scipy.io import savemat
 from sklearn.model_selection import train_test_split
 
 import tf_shared as tfs
+from tf_shared_k import print_confusion_matrix
 
 # Setup:
-TRAIN = True
+TRAIN = False
 SAVE_HIDDEN = False
-epochs = 25
+epochs = 50
 num_channels = 1
 num_classes = 6
 model_dir = "model_exports"
@@ -55,16 +56,13 @@ x_train, x_test, y_train, y_test = train_test_split(x_tt, y_tt, train_size=0.75,
 def get_model():
     k_model = Sequential()
     k_model.add(Reshape((seq_length, num_channels), input_shape=input_shape))
-    k_model.add(Conv1D(64, 8, strides=2, padding='same'))
-    k_model.add(LeakyReLU(0.2))
-    k_model.add(BatchNormalization())
-    k_model.add(Conv1D(128, 8, strides=2, padding='same'))
-    k_model.add(LeakyReLU(0.2))
-    k_model.add(BatchNormalization())
+    k_model.add(Conv1D(64, 16, strides=2, padding='same', activation='relu'))
+    k_model.add(Conv1D(128, 16, strides=2, padding='same', activation='relu'))
+    k_model.add(Conv1D(256, 16, strides=2, padding='same', activation='relu'))
     k_model.add(Flatten())
-    k_model.add(Dense(128, activation='relu', kernel_regularizer=regularizers.l2(l=0.01)))
-    k_model.add(BatchNormalization())
-    k_model.add(Dropout(0.25))
+    # k_model.add(Dense(64, activation='relu', kernel_regularizer=regularizers.l2(l=0.01)))
+    # k_model.add(BatchNormalization())
+    # k_model.add(Dropout(0.25))
     k_model.add(Dense(num_classes, activation='softmax'))
     adam = optimizers.adam(lr=learn_rate, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
     k_model.compile(loss='categorical_crossentropy', optimizer=adam, metrics=['accuracy'])
@@ -92,6 +90,10 @@ else:
 
 score, acc = model.evaluate(x_test, y_test, batch_size=128, verbose=1)
 print('Test score: {} , Test accuracy: {}'.format(score, acc))
+
+# Print confusion matrix:
+y_prob = model.predict(x_test)
+print_confusion_matrix(y_prob, y_test)
 
 # predict
 yy_probabilities = model.predict(x_test)

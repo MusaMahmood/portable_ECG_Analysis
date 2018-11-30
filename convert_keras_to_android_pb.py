@@ -1,56 +1,60 @@
-from tensorflow.python.tools import freeze_graph, optimize_for_inference_lib
-from keras.models import Sequential, load_model
+import os
+
+import numpy as np
+import tensorflow as tf
 from keras import backend as K
 from keras.engine.saving import preprocess_weights_for_loading
-import tensorflow as tf
+from keras.models import Sequential, load_model
+from tensorflow.python.tools import freeze_graph, optimize_for_inference_lib
+
 import tf_shared as tfs
-import os
 
 
 def print_weights(weights, message=''):
     print(message)
     for w in weights:
-        print(w.size)
+        print(w.shape)
 
 
-# Using Function:
-# model = tfs.export_model_keras(h5_filename, export_dir=tfs.prep_dir("graph"), model_name="temp_model_name")
-model_name = 'rat_2cnn.c1d_s2s_64lr0.01ep40_v1'
+sess = tf.Session()
+K.set_session(sess)
+
+K.set_learning_phase(0)
+
+model_name = 'normal_2cnn_fixed.conv1d_seq2seq_64lr0.01ep40_v1'
 h5_filename = model_name + '.h5'
-alt_h5_filename = 'alt_' + h5_filename
-
-if os.path.isfile(alt_h5_filename):
-    k_model_alt = load_model(alt_h5_filename)
-    k_config = k_model_alt.get_config()
-    SWAP_CUDNN_LAYER = True
-else:
-    k_config = None
-    SWAP_CUDNN_LAYER = False
+opt_h5_filename = 'alt_' + h5_filename
 
 # Load existing model.
 export_dir = 'graph'
 # Import graph that uses CuDNN
 if os.path.isfile(h5_filename):
     model = load_model(h5_filename)
+    original_config = model.get_config()
+    original_weights = model.get_weights()
 else:
     print("ERROR: Model Not Found")
     exit(-1)
 
-# All new operations will be in test mode from now on.
-K.set_learning_phase(0)
-
 # Serialize the model and get its weights, for quick re-building.
-original_config = model.get_config()
-original_weights = model.get_weights()
+if os.path.isfile(opt_h5_filename):
+    opt_model_config = load_model(opt_h5_filename).get_config()
+    SWAP_CUDNN_LAYER = True
+else:
+    opt_model_config = None
+    SWAP_CUDNN_LAYER = False
+
 # This method restores the model from the config, after freezing the model.
 # If SWAP_CUDNN_LAYER, this means we have an optimized model (without CuDNN training components),
 # and the weights have to be adjusted accordingly.
 if SWAP_CUDNN_LAYER:
-    output_model = Sequential.from_config(k_config)
-    # print_weights(original_weights, 'CudnnLSTM_weights')
+    output_model = Sequential.from_config(opt_model_config)
+    print_weights(original_weights, 'CudnnLSTM_weights')
     weights_fixed = preprocess_weights_for_loading(output_model, original_weights)
-    # print_weights(weights_fixed, 'FIXED: LSTM_weights')
+    print_weights(weights_fixed, 'FIXED: LSTM_weights')
     output_model.set_weights(weights_fixed)
+    result = output_model.predict(np.zeros(shape=[1, 2000, 2]))
+#     TODO: here run model.predict(zeros) to see if it works.
 else:
     # If we don't need to adjust any variables, then we roll with the original config/weights.
     output_model = Sequential.from_config(original_config)
@@ -62,7 +66,6 @@ temp_dir = "graph"
 checkpoint_prefix = os.path.join(temp_dir, "saved_checkpoint")
 checkpoint_state_name = "checkpoint_state"
 input_graph_name = "untrained_input_graph.pb"
-output_graph_name = "final_output_graph.pb"
 
 # Temporary save graph to disk without weights included.
 saver = tf.train.Saver()
@@ -99,3 +102,4 @@ print("2 - Android Optimized Model:", export_dir + '/opt_' + model_name + '.pb')
 
 tfs.print_graph_nodes(export_dir + '/frozen_' + model_name + '.pb')
 tfs.print_graph_nodes(export_dir + '/opt_' + model_name + '.pb')
+# tfs.print_all_nodes(export_dir + '/opt_' + model_name + '.pb')
